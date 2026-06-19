@@ -6,6 +6,7 @@ import {
   ManyToOne,
   JoinColumn,
   Unique,
+  Index,
 } from 'typeorm';
 import { Group } from './group.entity';
 import { User } from '../../users/entities/user.entity';
@@ -35,6 +36,7 @@ export class GroupMember {
   @JoinColumn({ name: 'groupId' })
   group: Group;
 
+  @Index()
   @Column({ nullable: true })
   userId: string;
 

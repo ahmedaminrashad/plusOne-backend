@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -29,6 +30,23 @@ export class GroupsController {
   @Get()
   getMyGroups(@CurrentUser() user: User) {
     return this.groupsService.getUserGroups(user.id);
+  }
+
+  @Get('invitations')
+  getMyInvitations(@CurrentUser() user: User) {
+    return this.groupsService.getMyInvitations(user.id);
+  }
+
+  @Patch('invitations/:membershipId/accept')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  acceptInvitation(@CurrentUser() user: User, @Param('membershipId') membershipId: string) {
+    return this.groupsService.acceptInvitation(membershipId, user.id);
+  }
+
+  @Patch('invitations/:membershipId/decline')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  declineInvitation(@CurrentUser() user: User, @Param('membershipId') membershipId: string) {
+    return this.groupsService.declineInvitation(membershipId, user.id);
   }
 
   @Get(':id')

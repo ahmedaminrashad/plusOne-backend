@@ -106,7 +106,7 @@ export class GroupsService {
             groupId,
             userId: registeredUser.id,
             role: MemberRole.MEMBER,
-            status: MemberStatus.ACTIVE,
+            status: MemberStatus.PENDING,
           });
           // TODO: send push notification to registeredUser
           this.logger.log(`[INVITE] Push sent to user ${registeredUser.id} for group ${groupId}`);
@@ -158,6 +158,33 @@ export class GroupsService {
 
     // TODO: send push/SMS notification to removed member
     this.logger.log(`[REMOVE] Member ${targetMemberId} removed from group ${groupId} by ${adminId}`);
+  }
+
+  async getMyInvitations(userId: string): Promise<GroupMember[]> {
+    return this.membersRepo.find({
+      where: { userId, status: MemberStatus.PENDING },
+      relations: { group: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async acceptInvitation(membershipId: string, userId: string): Promise<void> {
+    const membership = await this.membersRepo.findOne({
+      where: { id: membershipId, userId, status: MemberStatus.PENDING },
+    });
+    if (!membership) throw new NotFoundException('الدعوة غير موجودة');
+    membership.status = MemberStatus.ACTIVE;
+    await this.membersRepo.save(membership);
+  }
+
+  async declineInvitation(membershipId: string, userId: string): Promise<void> {
+    const membership = await this.membersRepo.findOne({
+      where: { id: membershipId, userId, status: MemberStatus.PENDING },
+    });
+    if (!membership) throw new NotFoundException('الدعوة غير موجودة');
+    membership.status = MemberStatus.REMOVED;
+    membership.removedBy = userId;
+    await this.membersRepo.save(membership);
   }
 
   async getMembers(groupId: string, userId: string): Promise<GroupMember[]> {
