@@ -12,6 +12,7 @@ CREATE TABLE `users` (
   `appleId`           VARCHAR(255)  NULL,
   `email`             VARCHAR(255)  NULL,
   `isProfileComplete` TINYINT(1)    NOT NULL DEFAULT 0,
+  `fcmToken`          VARCHAR(255)  NULL,
   `createdAt`         DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updatedAt`         DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`)

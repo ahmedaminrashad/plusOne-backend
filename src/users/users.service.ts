@@ -21,6 +21,10 @@ export class UsersService {
     return this.usersRepo.findOne({ where: { phone } });
   }
 
+  async saveFcmToken(id: string, fcmToken: string): Promise<void> {
+    await this.usersRepo.update(id, { fcmToken });
+  }
+
   async updateProfile(id: string, dto: UpdateProfileDto): Promise<User> {
     const user = await this.findById(id);
 

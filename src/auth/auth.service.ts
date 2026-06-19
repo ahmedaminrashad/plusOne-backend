@@ -163,7 +163,7 @@ export class AuthService {
       expiresAt,
     });
 
-    return { accessToken, refreshToken: refreshTokenValue, isNewUser, isProfileComplete: user.isProfileComplete };
+    return { accessToken, refreshToken: refreshTokenValue, isNewUser, isProfileComplete: !!user.displayName };
   }
 
   private generateOtp(): string {

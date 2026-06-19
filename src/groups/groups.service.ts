@@ -12,6 +12,7 @@ import { GroupMember, MemberRole, MemberStatus } from './entities/group-member.e
 import { User } from '../users/entities/user.entity';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class GroupsService {
@@ -25,6 +26,7 @@ export class GroupsService {
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
     private readonly dataSource: DataSource,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async createGroup(userId: string, dto: CreateGroupDto): Promise<Group> {
@@ -108,8 +110,15 @@ export class GroupsService {
             role: MemberRole.MEMBER,
             status: MemberStatus.PENDING,
           });
-          // TODO: send push notification to registeredUser
-          this.logger.log(`[INVITE] Push sent to user ${registeredUser.id} for group ${groupId}`);
+          const invitedGroup = await this.groupsRepo.findOne({ where: { id: groupId } });
+          if (registeredUser.fcmToken) {
+            await this.notifications.send(
+              registeredUser.fcmToken,
+              { title: 'دعوة جديدة 🎉', body: `تمت دعوتك للانضمام إلى مجموعة "${invitedGroup?.name}"` },
+              { type: 'invitation', groupId },
+            );
+          }
+          this.logger.log(`[INVITE] Notification sent to user ${registeredUser.id} for group ${groupId}`);
         } else {
           if (existing) {
             alreadyMembers++;
@@ -156,7 +165,14 @@ export class GroupsService {
     target.removedBy = adminId;
     await this.membersRepo.save(target);
 
-    // TODO: send push/SMS notification to removed member
+    if (target.user?.fcmToken) {
+      const removedGroup = await this.groupsRepo.findOne({ where: { id: groupId } });
+      await this.notifications.send(
+        target.user.fcmToken,
+        { title: 'تمت إزالتك من مجموعة', body: `لم تعد عضواً في مجموعة "${removedGroup?.name}"` },
+        { type: 'removed', groupId },
+      );
+    }
     this.logger.log(`[REMOVE] Member ${targetMemberId} removed from group ${groupId} by ${adminId}`);
   }
 
@@ -175,6 +191,24 @@ export class GroupsService {
     if (!membership) throw new NotFoundException('الدعوة غير موجودة');
     membership.status = MemberStatus.ACTIVE;
     await this.membersRepo.save(membership);
+
+    const [user, group] = await Promise.all([
+      this.usersRepo.findOne({ where: { id: userId } }),
+      this.groupsRepo.findOne({ where: { id: membership.groupId } }),
+    ]);
+    const admins = await this.membersRepo.find({
+      where: { groupId: membership.groupId, role: MemberRole.ADMIN, status: MemberStatus.ACTIVE },
+      relations: { user: true },
+    });
+    for (const admin of admins) {
+      if (admin.user?.fcmToken) {
+        await this.notifications.send(
+          admin.user.fcmToken,
+          { title: 'عضو جديد انضم! 🎊', body: `${user?.displayName ?? 'مستخدم'} انضم إلى "${group?.name}"` },
+          { type: 'member_joined', groupId: membership.groupId },
+        );
+      }
+    }
   }
 
   async declineInvitation(membershipId: string, userId: string): Promise<void> {

@@ -36,6 +36,9 @@ export class User {
   @Column({ default: false })
   isProfileComplete: boolean;
 
+  @Column({ nullable: true })
+  fcmToken: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

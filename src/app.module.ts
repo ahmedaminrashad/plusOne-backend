@@ -5,6 +5,7 @@ import { typeOrmConfig } from './config/typeorm.config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { GroupsModule } from './groups/groups.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { GroupsModule } from './groups/groups.module';
     AuthModule,
     UsersModule,
     GroupsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

@@ -4,9 +4,12 @@ import {
   Patch,
   Body,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { SaveFcmTokenDto } from './dto/save-fcm-token.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from './entities/user.entity';
@@ -24,5 +27,11 @@ export class UsersController {
   @Patch('me')
   updateProfile(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(user.id, dto);
+  }
+
+  @Patch('me/fcm-token')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  saveFcmToken(@CurrentUser() user: User, @Body() dto: SaveFcmTokenDto) {
+    return this.usersService.saveFcmToken(user.id, dto.fcmToken);
   }
 }
