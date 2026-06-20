@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { OtpCode } from './entities/otp-code.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
+import { GroupMember, MemberStatus } from '../groups/entities/group-member.entity';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 
@@ -31,6 +32,8 @@ export class AuthService {
     private readonly refreshTokenRepo: Repository<RefreshToken>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    @InjectRepository(GroupMember)
+    private readonly membersRepo: Repository<GroupMember>,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -77,6 +80,7 @@ export class AuthService {
       let user = await this.usersRepo.findOne({ where: { phone } });
       const isNewUser = !user;
       if (!user) user = await this.usersRepo.save({ phone });
+      await this.migratePendingInvitations(phone, user.id);
       this.logger.warn(`[OTP] Magic code used for ${phone}`);
       return this.generateTokens(user, isNewUser);
     }
@@ -121,6 +125,8 @@ export class AuthService {
       user = await this.usersRepo.save({ phone });
     }
 
+    await this.migratePendingInvitations(phone, user.id);
+
     return this.generateTokens(user, isNewUser);
   }
 
@@ -143,6 +149,13 @@ export class AuthService {
 
   async revokeRefreshToken(token: string): Promise<void> {
     await this.refreshTokenRepo.update({ token }, { revoked: true });
+  }
+
+  private async migratePendingInvitations(phone: string, userId: string): Promise<void> {
+    await this.membersRepo.update(
+      { pendingPhone: phone, status: MemberStatus.PENDING },
+      { userId, pendingPhone: null as unknown as string },
+    );
   }
 
   private async generateTokens(

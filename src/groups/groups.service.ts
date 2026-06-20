@@ -176,7 +176,14 @@ export class GroupsService {
     this.logger.log(`[REMOVE] Member ${targetMemberId} removed from group ${groupId} by ${adminId}`);
   }
 
-  async getMyInvitations(userId: string): Promise<GroupMember[]> {
+  async getMyInvitations(userId: string, phone: string): Promise<GroupMember[]> {
+    await this.membersRepo
+      .createQueryBuilder()
+      .update()
+      .set({ userId, pendingPhone: () => 'NULL' })
+      .where('pendingPhone = :phone AND status = :status', { phone, status: MemberStatus.PENDING })
+      .execute();
+
     return this.membersRepo.find({
       where: { userId, status: MemberStatus.PENDING },
       relations: { group: true },

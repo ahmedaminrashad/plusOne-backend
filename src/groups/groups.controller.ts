@@ -34,7 +34,7 @@ export class GroupsController {
 
   @Get('invitations')
   getMyInvitations(@CurrentUser() user: User) {
-    return this.groupsService.getMyInvitations(user.id);
+    return this.groupsService.getMyInvitations(user.id, user.phone);
   }
 
   @Patch('invitations/:membershipId/accept')
