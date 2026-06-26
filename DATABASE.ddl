@@ -1,5 +1,5 @@
 -- PlusOne Database Schema (MySQL)
--- Last updated: 2026-06-19
+-- Last updated: 2026-06-26
 -- Source of truth: sync this file on every entity change.
 
 CREATE TABLE `users` (
@@ -78,16 +78,26 @@ CREATE TABLE `group_members` (
 
 
 CREATE TABLE `bills` (
-  `id`              VARCHAR(36)    NOT NULL,
-  `groupId`         VARCHAR(36)    NOT NULL,
-  `title`           VARCHAR(255)   NOT NULL,
-  `amount`          DECIMAL(10,2)  NOT NULL,
-  `currency`        VARCHAR(10)    NOT NULL DEFAULT 'EGP',
-  `paidByUserId`    VARCHAR(36)    NOT NULL,
-  `notes`           TEXT           NULL,
-  `receiptPhotoUrl` VARCHAR(500)   NULL,
-  `createdAt`       DATETIME(6)    NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  `updatedAt`       DATETIME(6)    NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  `id`              VARCHAR(36)                        NOT NULL,
+  `groupId`         VARCHAR(36)                        NOT NULL,
+  `title`           VARCHAR(255)                       NULL DEFAULT NULL,
+  `amount`          DECIMAL(10,2)                      NOT NULL,
+  `currency`        VARCHAR(10)                        NOT NULL DEFAULT 'EGP',
+  `paidByUserId`    VARCHAR(36)                        NOT NULL,
+  `notes`           TEXT                               NULL,
+  `receiptPhotoUrl` VARCHAR(500)                       NULL,
+  `captureMethod`   ENUM('qr','manual','ocr')          NOT NULL DEFAULT 'manual',
+  `sourceRef`       VARCHAR(500)                       NULL,
+  `venueName`       VARCHAR(255)                       NULL,
+  `lineItems`       JSON                               NULL,
+  `tax`             DECIMAL(10,2)                      NULL,
+  `taxType`         ENUM('percent','amount')           NULL,
+  `service`         DECIMAL(10,2)                      NULL,
+  `serviceType`     ENUM('percent','amount')           NULL,
+  `tip`             DECIMAL(10,2)                      NULL,
+  `tipType`         ENUM('percent','amount')           NULL,
+  `createdAt`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
   INDEX `IDX_bills_groupId` (`groupId`),
   INDEX `IDX_bills_paidByUserId` (`paidByUserId`),

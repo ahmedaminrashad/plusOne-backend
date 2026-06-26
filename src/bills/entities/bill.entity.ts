@@ -10,6 +10,12 @@ import {
 import { Group } from '../../groups/entities/group.entity';
 import { User } from '../../users/entities/user.entity';
 
+export interface BillLineItem {
+  name: string;
+  qty: number;
+  unitPrice: number;
+}
+
 @Entity('bills')
 export class Bill {
   @PrimaryGeneratedColumn('uuid')
@@ -22,8 +28,8 @@ export class Bill {
   @JoinColumn({ name: 'groupId' })
   group: Group;
 
-  @Column()
-  title: string;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  title: string | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
@@ -43,6 +49,36 @@ export class Bill {
 
   @Column({ nullable: true })
   receiptPhotoUrl: string;
+
+  @Column({ type: 'enum', enum: ['qr', 'manual', 'ocr'], default: 'manual' })
+  captureMethod: 'qr' | 'manual' | 'ocr';
+
+  @Column({ type: 'varchar', nullable: true, length: 500 })
+  sourceRef: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  venueName: string | null;
+
+  @Column({ type: 'json', nullable: true })
+  lineItems: BillLineItem[] | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  tax: number | null;
+
+  @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })
+  taxType: 'percent' | 'amount' | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  service: number | null;
+
+  @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })
+  serviceType: 'percent' | 'amount' | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  tip: number | null;
+
+  @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })
+  tipType: 'percent' | 'amount' | null;
 
   @CreateDateColumn()
   createdAt: Date;

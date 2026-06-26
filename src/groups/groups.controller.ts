@@ -13,6 +13,7 @@ import {
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
+import { ChatNotificationDto } from './dto/chat-notification.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -77,5 +78,15 @@ export class GroupsController {
     @Param('memberId') memberId: string,
   ) {
     return this.groupsService.removeMember(id, user.id, memberId);
+  }
+
+  @Post(':id/chat-notification')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  sendChatNotification(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: ChatNotificationDto,
+  ) {
+    return this.groupsService.sendChatNotification(id, user.id, dto.senderName, dto.messagePreview);
   }
 }

@@ -237,6 +237,30 @@ export class GroupsService {
     });
   }
 
+  async sendChatNotification(
+    groupId: string,
+    senderId: string,
+    senderName: string,
+    messagePreview: string,
+  ): Promise<void> {
+    const members = await this.membersRepo.find({
+      where: { groupId, status: MemberStatus.ACTIVE },
+      relations: { user: true },
+    });
+
+    const recipients = members.filter((m) => m.userId && m.userId !== senderId && m.user?.fcmToken);
+
+    await Promise.allSettled(
+      recipients.map((m) =>
+        this.notifications.send(
+          m.user!.fcmToken!,
+          { title: senderName, body: messagePreview },
+          { type: 'chat_message', groupId },
+        ),
+      ),
+    );
+  }
+
   private async assertMembership(groupId: string, userId: string): Promise<GroupMember> {
     const membership = await this.membersRepo.findOne({
       where: { groupId, userId, status: MemberStatus.ACTIVE },
