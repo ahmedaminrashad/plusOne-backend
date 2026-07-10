@@ -30,7 +30,7 @@ export class QrParserService {
   private readonly strategies: QrStrategy[] = [];
 
   constructor() {
-    this.strategies = [new FoodicsStrategy(), new SchemaOrgStrategy()];
+    this.strategies = [new EtaReceiptStrategy(), new FoodicsStrategy(), new SchemaOrgStrategy()];
   }
 
   async parse(payload: string): Promise<QrParseResult> {
@@ -76,6 +76,85 @@ export class QrParserService {
     // Fall through to web-view fallback
     return { success: false, fallback: 'webview', url: trimmed };
   }
+}
+
+// ──────────────────────────────────────────────────────────────
+// ETA (Egyptian Tax Authority) receipt strategy
+// ──────────────────────────────────────────────────────────────
+
+const ETA_SHARE_RE =
+  /invoicing\.eta\.gov\.eg\/receipts\/search\/([0-9a-f]{64})\/share\/([^?#\s]+)/i;
+
+const ETA_API_BASE = 'https://api-portal.invoicing.eta.gov.eg';
+
+class EtaReceiptStrategy implements QrStrategy {
+  name = 'ETA';
+
+  canParse(payload: string): boolean {
+    return ETA_SHARE_RE.test(payload);
+  }
+
+  async parse(payload: string): Promise<ParsedBillData | null> {
+    const match = ETA_SHARE_RE.exec(payload);
+    if (!match) return null;
+
+    const [, hash, rawDate] = match;
+    const dateTimeIssued = normalizeEtaDate(rawDate);
+
+    const apiUrl =
+      `${ETA_API_BASE}/api/v1/receipts/${hash}/share` +
+      `?dateTimeIssued=${encodeURIComponent(dateTimeIssued)}`;
+
+    const res = await fetch(apiUrl, {
+      headers: {
+        Accept: 'text/plain',
+        Origin: 'https://invoicing.eta.gov.eg',
+        Referer: 'https://invoicing.eta.gov.eg/',
+      },
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    return mapEtaReceipt(data, payload);
+  }
+}
+
+function normalizeEtaDate(raw: string): string {
+  const decoded = decodeURIComponent(raw);
+  // "T14:52:Z"   → "T14:52:00.000Z"
+  // "T14:52:30Z" → "T14:52:30.000Z"
+  return decoded
+    .replace(/T(\d{2}:\d{2}):Z$/, 'T$1:00.000Z')
+    .replace(/T(\d{2}:\d{2}:\d{2})Z$/, 'T$1.000Z');
+}
+
+function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
+  const r = data?.receipt;
+  if (!r) return null;
+
+  const lineItems: BillLineItem[] = (r.itemData ?? []).map((item: any) => ({
+    name: item.description ?? item.itemCodeName ?? 'صنف',
+    qty: Number(item.quantity ?? 1),
+    unitPrice: Number(item.unitPrice ?? 0),
+  }));
+
+  if (lineItems.length === 0) return null;
+
+  const taxAmount = (r.taxTotals ?? []).reduce(
+    (sum: number, t: any) => sum + Number(t.amount ?? 0),
+    0,
+  );
+
+  return {
+    venueName: r.seller?.sellerName ?? undefined,
+    lineItems,
+    subtotal: r.netAmount != null ? Number(r.netAmount) : undefined,
+    tax: taxAmount > 0 ? taxAmount : undefined,
+    taxType: taxAmount > 0 ? 'amount' : undefined,
+    captureMethod: 'qr',
+    sourceRef,
+  };
 }
 
 // ──────────────────────────────────────────────────────────────
