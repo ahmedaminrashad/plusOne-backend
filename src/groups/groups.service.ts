@@ -14,6 +14,7 @@ import { User } from '../users/entities/user.entity';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { notificationTexts } from '../notifications/notification-texts';
 
 @Injectable()
 export class GroupsService {
@@ -115,7 +116,7 @@ export class GroupsService {
           if (registeredUser.fcmToken) {
             await this.notifications.send(
               registeredUser.fcmToken,
-              { title: 'دعوة جديدة 🎉', body: `تمت دعوتك للانضمام إلى مجموعة "${invitedGroup?.name}"` },
+              notificationTexts.invitation(registeredUser.language, { groupName: invitedGroup?.name ?? '' }),
               { type: 'invitation', groupId },
             );
           }
@@ -170,7 +171,7 @@ export class GroupsService {
       const removedGroup = await this.groupsRepo.findOne({ where: { id: groupId } });
       await this.notifications.send(
         target.user.fcmToken,
-        { title: 'تمت إزالتك من مجموعة', body: `لم تعد عضواً في مجموعة "${removedGroup?.name}"` },
+        notificationTexts.removed(target.user.language, { groupName: removedGroup?.name ?? '' }),
         { type: 'removed', groupId },
       );
     }
@@ -212,7 +213,10 @@ export class GroupsService {
       if (admin.user?.fcmToken) {
         await this.notifications.send(
           admin.user.fcmToken,
-          { title: 'عضو جديد انضم! 🎊', body: `${user?.displayName ?? 'مستخدم'} انضم إلى "${group?.name}"` },
+          notificationTexts.memberJoined(admin.user.language, {
+            userName: user?.displayName ?? (admin.user.language === 'en' ? 'A user' : 'مستخدم'),
+            groupName: group?.name ?? '',
+          }),
           { type: 'member_joined', groupId: membership.groupId },
         );
       }

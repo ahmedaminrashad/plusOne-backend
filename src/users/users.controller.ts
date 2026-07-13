@@ -10,6 +10,7 @@ import {
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SaveFcmTokenDto } from './dto/save-fcm-token.dto';
+import { SaveLanguageDto } from './dto/save-language.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from './entities/user.entity';
@@ -33,5 +34,11 @@ export class UsersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   saveFcmToken(@CurrentUser() user: User, @Body() dto: SaveFcmTokenDto) {
     return this.usersService.saveFcmToken(user.id, dto.fcmToken);
+  }
+
+  @Patch('me/language')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  saveLanguage(@CurrentUser() user: User, @Body() dto: SaveLanguageDto) {
+    return this.usersService.saveLanguage(user.id, dto.language);
   }
 }

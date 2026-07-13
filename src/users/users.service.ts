@@ -25,6 +25,10 @@ export class UsersService {
     await this.usersRepo.update(id, { fcmToken });
   }
 
+  async saveLanguage(id: string, language: 'ar' | 'en'): Promise<void> {
+    await this.usersRepo.update(id, { language });
+  }
+
   async updateProfile(id: string, dto: UpdateProfileDto): Promise<User> {
     const user = await this.findById(id);
 

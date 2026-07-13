@@ -19,12 +19,9 @@ import { SharesStateService } from './shares-state.service';
 import { AuditLogService } from '../audit/audit-log.service';
 import { AuditSource } from '../audit/entities/audit-log.entity';
 import { NotificationsService } from '../notifications/notifications.service';
+import { notificationTexts } from '../notifications/notification-texts';
 
 const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-
-function formatEgp(amountPiastres: number): string {
-  return (amountPiastres / 100).toFixed(2);
-}
 
 @Injectable()
 export class SharesService {
@@ -114,10 +111,12 @@ export class SharesService {
       if (!member?.user?.fcmToken) continue;
       await this.notifications.send(
         member.user.fcmToken,
-        {
-          title: 'فاتورة جديدة 🧾',
-          body: `${initiator?.displayName ?? 'صديقك'} أضاف فاتورة جديدة في ${group?.name ?? 'المجموعة'} — نصيبك ${formatEgp(share.amountPiastres)} ${share.currency}`,
-        },
+        notificationTexts.shareAssigned(member.user.language, {
+          initiatorName: initiator?.displayName ?? (member.user.language === 'en' ? 'A friend' : 'صديقك'),
+          groupName: group?.name ?? '',
+          amountPiastres: share.amountPiastres,
+          currency: share.currency,
+        }),
         {
           type: 'share_assigned',
           groupId: bill.groupId,
@@ -172,12 +171,15 @@ export class SharesService {
       relations: { owner: true, initiator: true, bill: true },
     });
     if (withRelations?.initiator?.fcmToken) {
+      const lang = withRelations.initiator.language;
       await this.notifications.send(
         withRelations.initiator.fcmToken,
-        {
-          title: 'دفعة قيد التنفيذ',
-          body: `${withRelations.owner?.displayName ?? 'عضو'} بدأ دفع مبلغ ${formatEgp(withRelations.amountPiastres)} ج.م لـ ${withRelations.bill?.title ?? 'الفاتورة'}`,
-        },
+        notificationTexts.shareInitiated(lang, {
+          ownerName: withRelations.owner?.displayName ?? (lang === 'en' ? 'A member' : 'عضو'),
+          amountPiastres: withRelations.amountPiastres,
+          currency: withRelations.currency,
+          billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
+        }),
         { type: 'share_initiated', shareId: updated.id },
       );
     }
@@ -224,12 +226,15 @@ export class SharesService {
       relations: { owner: true, initiator: true, bill: true },
     });
     if (withRelations?.owner?.fcmToken) {
+      const lang = withRelations.owner.language;
       await this.notifications.send(
         withRelations.owner.fcmToken,
-        {
-          title: 'تم تأكيد الدفع ✅',
-          body: `${withRelations.initiator?.displayName ?? 'المُنشئ'} أكد استلام ${formatEgp(withRelations.amountPiastres)} ج.م لـ ${withRelations.bill?.title ?? 'الفاتورة'}`,
-        },
+        notificationTexts.shareSettled(lang, {
+          initiatorName: withRelations.initiator?.displayName ?? (lang === 'en' ? 'The creator' : 'المُنشئ'),
+          amountPiastres: withRelations.amountPiastres,
+          currency: withRelations.currency,
+          billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
+        }),
         { type: 'share_settled', shareId: updated.id },
       );
     }
@@ -329,12 +334,16 @@ export class SharesService {
 
     let deliveryFailed = false;
     if (share.owner?.fcmToken) {
+      const lang = share.owner.language;
       await this.notifications.send(
         share.owner.fcmToken,
-        {
-          title: 'تذكير بالدفع',
-          body: `${share.initiator?.displayName ?? 'صديقك'} يذكرك بدفع ${formatEgp(share.amountPiastres)} ج.م لـ ${share.bill?.title ?? 'الفاتورة'} في ${share.bill?.group?.name ?? 'المجموعة'}`,
-        },
+        notificationTexts.shareReminder(lang, {
+          initiatorName: share.initiator?.displayName ?? (lang === 'en' ? 'A friend' : 'صديقك'),
+          amountPiastres: share.amountPiastres,
+          currency: share.currency,
+          billTitle: share.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
+          groupName: share.bill?.group?.name ?? (lang === 'en' ? 'the group' : 'المجموعة'),
+        }),
         { type: 'share_reminder', shareId: share.id },
       );
     } else {
@@ -366,12 +375,14 @@ export class SharesService {
   private async doSendStaleNudge(manager: EntityManager, share: Share): Promise<void> {
     const now = new Date();
     if (share.initiator?.fcmToken) {
+      const lang = share.initiator.language;
       await this.notifications.send(
         share.initiator.fcmToken,
-        {
-          title: 'دفعة في انتظار التأكيد',
-          body: `لديك دفعة بقيمة ${formatEgp(share.amountPiastres)} ج.م في انتظار تأكيد الاستلام لـ ${share.bill?.title ?? 'الفاتورة'}`,
-        },
+        notificationTexts.shareStaleNudge(lang, {
+          amountPiastres: share.amountPiastres,
+          currency: share.currency,
+          billTitle: share.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
+        }),
         { type: 'share_stale_nudge', shareId: share.id },
       );
     }

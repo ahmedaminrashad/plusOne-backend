@@ -1,5 +1,5 @@
 -- PlusOne Database Schema (MySQL)
--- Last updated: 2026-07-13
+-- Last updated: 2026-07-13 (added users.language)
 -- Source of truth: sync this file on every entity change.
 
 CREATE TABLE `users` (
@@ -13,6 +13,7 @@ CREATE TABLE `users` (
   `email`             VARCHAR(255)  NULL,
   `isProfileComplete` TINYINT(1)    NOT NULL DEFAULT 0,
   `fcmToken`          VARCHAR(255)  NULL,
+  `language`          ENUM('ar','en') NOT NULL DEFAULT 'ar',
   `createdAt`         DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updatedAt`         DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`)
