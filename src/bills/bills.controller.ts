@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Param,
   Body,
@@ -13,6 +14,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BillsService } from './bills.service';
 import { CreateBillDto } from './dto/create-bill.dto';
+import { UpdateBillItemsDto } from './dto/update-bill-items.dto';
 import { ParseQrDto } from './dto/parse-qr.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -44,6 +46,20 @@ export class BillsController {
   @Delete(':id')
   deleteBill(@Param('id') id: string, @CurrentUser() user: any) {
     return this.billsService.deleteBill(id, user.id);
+  }
+
+  @Patch(':id/items')
+  updateBillItems(
+    @Param('id') id: string,
+    @Body() dto: UpdateBillItemsDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.billsService.updateBillItems(id, user.id, dto);
+  }
+
+  @Post(':id/close')
+  closeBill(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.billsService.closeBill(id, user.id);
   }
 
   @Post('group/:groupId/parse-qr')

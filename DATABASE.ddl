@@ -1,5 +1,5 @@
 -- PlusOne Database Schema (MySQL)
--- Last updated: 2026-07-13 (added users.language)
+-- Last updated: 2026-07-13 (added bills.closedAt)
 -- Source of truth: sync this file on every entity change.
 
 CREATE TABLE `users` (
@@ -90,13 +90,14 @@ CREATE TABLE `bills` (
   `captureMethod`   ENUM('qr','manual','ocr')          NOT NULL DEFAULT 'manual',
   `sourceRef`       VARCHAR(500)                       NULL,
   `venueName`       VARCHAR(255)                       NULL,
-  `lineItems`       JSON                               NULL,
+  `lineItems`       JSON                               NULL, -- [{name, qty, unitPrice, claimedBy: groupMemberId[]}]. Editable via PATCH /bills/:id/items while closedAt IS NULL.
   `tax`             DECIMAL(10,2)                      NULL,
   `taxType`         ENUM('percent','amount')           NULL,
   `service`         DECIMAL(10,2)                      NULL,
   `serviceType`     ENUM('percent','amount')           NULL,
   `tip`             DECIMAL(10,2)                      NULL,
   `tipType`         ENUM('percent','amount')           NULL,
+  `closedAt`        DATETIME(6)                        NULL DEFAULT NULL,
   `createdAt`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updatedAt`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),

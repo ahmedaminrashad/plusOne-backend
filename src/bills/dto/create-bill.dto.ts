@@ -28,6 +28,11 @@ export class LineItemDto {
   @IsNumber()
   @IsPositive()
   unitPrice: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  claimedBy?: string[];
 }
 
 export class CreateBillDto {

@@ -91,6 +91,91 @@ export class SharesService {
     return saved;
   }
 
+  /** Re-derives share rows from an edited item-claim set. Only ever touches
+   * PENDING shares — callers must ensure the bill isn't closed (auto-locked
+   * the moment any share leaves PENDING) before calling this. */
+  async reconcileSharesForBill(
+    manager: EntityManager,
+    bill: Bill,
+    dtos: CreateShareDto[],
+    actorUserId: string,
+  ): Promise<Share[]> {
+    const billTotalPiastres = Math.round(Number(bill.amount) * 100);
+    const totalPiastres = dtos.reduce((sum, d) => sum + d.amountPiastres, 0);
+    if (totalPiastres > billTotalPiastres) {
+      throw new BadRequestException('SHARES_EXCEED_BILL_TOTAL');
+    }
+
+    const memberIds = dtos.map((d) => d.groupMemberId);
+    const members = await manager.find(GroupMember, {
+      where: { id: In(memberIds), groupId: bill.groupId, status: MemberStatus.ACTIVE },
+    });
+    const memberById = new Map(members.map((m) => [m.id, m]));
+
+    const existingShares = await manager.find(Share, { where: { billId: bill.id } });
+    const existingByUserId = new Map(
+      existingShares.filter((s) => s.ownerUserId).map((s) => [s.ownerUserId as string, s]),
+    );
+    const existingByPhone = new Map(
+      existingShares.filter((s) => s.ownerPendingPhone).map((s) => [s.ownerPendingPhone as string, s]),
+    );
+
+    const keepShareIds = new Set<string>();
+    const result: Share[] = [];
+
+    for (const dto of dtos) {
+      const member = memberById.get(dto.groupMemberId);
+      if (!member) {
+        throw new BadRequestException('INVALID_GROUP_MEMBER');
+      }
+      if (member.userId && member.userId === bill.paidByUserId) {
+        throw new BadRequestException('PAYER_CANNOT_OWE_SELF');
+      }
+
+      const existing = member.userId
+        ? existingByUserId.get(member.userId)
+        : existingByPhone.get(member.pendingPhone as string);
+
+      if (existing) {
+        if (existing.status !== ShareStatus.PENDING) {
+          throw new ConflictException('BILL_CLOSED');
+        }
+        existing.amountPiastres = dto.amountPiastres;
+        const saved = await manager.save(existing);
+        keepShareIds.add(saved.id);
+        result.push(saved);
+      } else {
+        const created = manager.create(Share, {
+          billId: bill.id,
+          groupId: bill.groupId,
+          initiatorUserId: bill.paidByUserId,
+          ownerUserId: member.userId ?? null,
+          ownerPendingPhone: member.userId ? null : member.pendingPhone,
+          amountPiastres: dto.amountPiastres,
+          currency: bill.currency,
+          status: ShareStatus.PENDING,
+          method: ShareMethod.INSTAPAY,
+        });
+        const saved = await manager.save(Share, created);
+        saved.reference = `+one-${bill.id.slice(0, 8)}-${saved.id.slice(0, 8)}`;
+        const withRef = await manager.save(Share, saved);
+        keepShareIds.add(withRef.id);
+        result.push(withRef);
+      }
+    }
+
+    for (const share of existingShares) {
+      if (keepShareIds.has(share.id) || share.status !== ShareStatus.PENDING) continue;
+      await this.stateService.transition(manager, share, ShareStatus.CANCELLED, {
+        actor: actorUserId,
+        source: AuditSource.USER,
+        reason: 'removed_from_bill_items',
+      });
+    }
+
+    return result;
+  }
+
   private async notifyAssignedShares(
     manager: EntityManager,
     bill: Bill,

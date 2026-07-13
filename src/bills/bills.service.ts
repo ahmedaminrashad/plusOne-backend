@@ -1,9 +1,10 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Bill } from './entities/bill.entity';
+import { Bill, BillLineItem } from './entities/bill.entity';
 import { GroupMember } from '../groups/entities/group-member.entity';
 import { CreateBillDto } from './dto/create-bill.dto';
+import { UpdateBillItemsDto } from './dto/update-bill-items.dto';
 import { QrParserService, QrParseResult } from './qr-parser/qr-parser.service';
 import { SharesService } from '../shares/shares.service';
 
@@ -48,7 +49,10 @@ export class BillsService {
     return this.billsRepo.findOne({ where: { id: savedId }, relations: { paidBy: true } }) as Promise<Bill>;
   }
 
-  async getBillDetail(billId: string, userId: string): Promise<Bill & { aggregateStatus: string; shares: unknown[] }> {
+  async getBillDetail(
+    billId: string,
+    userId: string,
+  ): Promise<Bill & { aggregateStatus: string; shares: unknown[]; isEditable: boolean }> {
     const bill = await this.billsRepo.findOne({
       where: { id: billId },
       relations: { paidBy: true },
@@ -59,7 +63,42 @@ export class BillsService {
     const shares = await this.sharesService.getBillShares(billId);
     const aggregateStatus = this.sharesService.computeAggregateBillStatus(shares);
 
-    return { ...bill, shares, aggregateStatus };
+    return { ...bill, shares, aggregateStatus, isEditable: bill.closedAt === null };
+  }
+
+  async updateBillItems(billId: string, userId: string, dto: UpdateBillItemsDto): Promise<Bill & { aggregateStatus: string; shares: unknown[]; isEditable: boolean }> {
+    const bill = await this.billsRepo.findOne({ where: { id: billId } });
+    if (!bill) throw new NotFoundException('BILL_NOT_FOUND');
+    await this.assertMember(bill.groupId, userId);
+    if (bill.closedAt !== null) throw new ConflictException('BILL_CLOSED');
+
+    await this.dataSource.transaction(async (manager) => {
+      const fresh = await manager.findOne(Bill, { where: { id: billId } });
+      if (!fresh) throw new NotFoundException('BILL_NOT_FOUND');
+      if (fresh.closedAt !== null) throw new ConflictException('BILL_CLOSED');
+
+      fresh.lineItems = dto.lineItems.map((li): BillLineItem => ({
+        name: li.name,
+        qty: li.qty,
+        unitPrice: li.unitPrice,
+        claimedBy: li.claimedBy ?? [],
+      }));
+      await manager.save(fresh);
+
+      await this.sharesService.reconcileSharesForBill(manager, fresh, dto.shares, userId);
+    });
+
+    return this.getBillDetail(billId, userId);
+  }
+
+  async closeBill(billId: string, userId: string): Promise<Bill> {
+    const bill = await this.billsRepo.findOne({ where: { id: billId } });
+    if (!bill) throw new NotFoundException('BILL_NOT_FOUND');
+    if (bill.paidByUserId !== userId) throw new ForbiddenException('NOT_BILL_OWNER');
+    if (bill.closedAt !== null) throw new ConflictException('BILL_ALREADY_CLOSED');
+
+    bill.closedAt = new Date();
+    return this.billsRepo.save(bill);
   }
 
   async deleteBill(billId: string, userId: string): Promise<void> {

@@ -1,6 +1,7 @@
 import { Injectable, ConflictException } from '@nestjs/common';
-import { EntityManager } from 'typeorm';
+import { EntityManager, IsNull } from 'typeorm';
 import { Share, ShareStatus, ShareFailureReason } from './entities/share.entity';
+import { Bill } from '../bills/entities/bill.entity';
 import { AuditLogService } from '../audit/audit-log.service';
 import { AuditSource } from '../audit/entities/audit-log.entity';
 
@@ -54,6 +55,12 @@ export class SharesStateService {
     }
 
     const saved = await manager.save(share);
+
+    // Once a member starts (or completes) paying, item claims can no longer be
+    // edited out from under an in-flight/settled amount — lock the bill for good.
+    if (toState === ShareStatus.INITIATED || toState === ShareStatus.SETTLED) {
+      await manager.update(Bill, { id: share.billId, closedAt: IsNull() }, { closedAt: new Date() });
+    }
 
     await this.auditLog.record(manager, {
       shareId: saved.id,

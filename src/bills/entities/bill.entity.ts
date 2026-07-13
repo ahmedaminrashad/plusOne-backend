@@ -15,6 +15,7 @@ export interface BillLineItem {
   name: string;
   qty: number;
   unitPrice: number;
+  claimedBy?: string[];
 }
 
 // mysql2 returns DECIMAL columns as strings; coerce to number so callers can safely do arithmetic/.toFixed() on them.
@@ -86,6 +87,9 @@ export class Bill {
 
   @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })
   tipType: 'percent' | 'amount' | null;
+
+  @Column({ type: 'datetime', precision: 6, nullable: true, default: null })
+  closedAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
