@@ -62,7 +62,7 @@ export class BillsController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() _user: any,
   ) {
-    if (!file) throw new BadRequestException('Image file is required');
+    if (!file) throw new BadRequestException('IMAGE_FILE_REQUIRED');
     // OCR integration scaffold — requires GOOGLE_VISION_API_KEY or AWS credentials
     // Return a structured response indicating OCR is not yet configured
     return {

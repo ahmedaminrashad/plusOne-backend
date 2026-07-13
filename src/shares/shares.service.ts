@@ -11,6 +11,8 @@ import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import { Share, ShareStatus, ShareMethod } from './entities/share.entity';
 import { Bill } from '../bills/entities/bill.entity';
 import { GroupMember, MemberStatus } from '../groups/entities/group-member.entity';
+import { Group } from '../groups/entities/group.entity';
+import { User } from '../users/entities/user.entity';
 import { CreateShareDto } from './dto/create-share.dto';
 import { FailShareDto } from './dto/fail-share.dto';
 import { SharesStateService } from './shares-state.service';
@@ -47,6 +49,7 @@ export class SharesService {
     const memberIds = dtos.map((d) => d.groupMemberId);
     const members = await manager.find(GroupMember, {
       where: { id: In(memberIds), groupId: bill.groupId, status: MemberStatus.ACTIVE },
+      relations: { user: true },
     });
     const memberById = new Map(members.map((m) => [m.id, m]));
 
@@ -56,12 +59,10 @@ export class SharesService {
     for (const dto of dtos) {
       const member = memberById.get(dto.groupMemberId);
       if (!member) {
-        throw new BadRequestException(
-          `Group member ${dto.groupMemberId} is not an active member of this group`,
-        );
+        throw new BadRequestException('INVALID_GROUP_MEMBER');
       }
       if (member.userId && member.userId === bill.paidByUserId) {
-        throw new BadRequestException('The bill payer cannot owe a share of their own bill');
+        throw new BadRequestException('PAYER_CANNOT_OWE_SELF');
       }
       totalPiastres += dto.amountPiastres;
       toCreate.push({
@@ -79,16 +80,52 @@ export class SharesService {
 
     const billTotalPiastres = Math.round(Number(bill.amount) * 100);
     if (totalPiastres > billTotalPiastres) {
-      throw new BadRequestException(
-        'The sum of shares exceeds the total bill amount',
-      );
+      throw new BadRequestException('SHARES_EXCEED_BILL_TOTAL');
     }
 
     const created = await manager.save(Share, toCreate);
     for (const share of created) {
       share.reference = `+one-${bill.id.slice(0, 8)}-${share.id.slice(0, 8)}`;
     }
-    return manager.save(Share, created);
+    const saved = await manager.save(Share, created);
+
+    await this.notifyAssignedShares(manager, bill, saved, members);
+
+    return saved;
+  }
+
+  private async notifyAssignedShares(
+    manager: EntityManager,
+    bill: Bill,
+    shares: Share[],
+    members: GroupMember[],
+  ): Promise<void> {
+    const ownedShares = shares.filter((s) => s.ownerUserId);
+    if (ownedShares.length === 0) return;
+
+    const [initiator, group] = await Promise.all([
+      manager.findOne(User, { where: { id: bill.paidByUserId } }),
+      manager.findOne(Group, { where: { id: bill.groupId } }),
+    ]);
+    const memberByUserId = new Map(members.filter((m) => m.userId).map((m) => [m.userId, m]));
+
+    for (const share of ownedShares) {
+      const member = memberByUserId.get(share.ownerUserId!);
+      if (!member?.user?.fcmToken) continue;
+      await this.notifications.send(
+        member.user.fcmToken,
+        {
+          title: 'فاتورة جديدة 🧾',
+          body: `${initiator?.displayName ?? 'صديقك'} أضاف فاتورة جديدة في ${group?.name ?? 'المجموعة'} — نصيبك ${formatEgp(share.amountPiastres)} ${share.currency}`,
+        },
+        {
+          type: 'share_assigned',
+          groupId: bill.groupId,
+          groupName: group?.name ?? '',
+          billId: bill.id,
+        },
+      );
+    }
   }
 
   async getBillShares(billId: string): Promise<Share[]> {
@@ -113,15 +150,13 @@ export class SharesService {
   async payShare(shareId: string, userId: string): Promise<Share> {
     const share = await this.getShareOrThrow(shareId);
     if (share.ownerUserId !== userId) {
-      throw new ForbiddenException('هذا النصيب ليس مستحقاً عليك');
+      throw new ForbiddenException('NOT_SHARE_OWNER');
     }
     if (share.status === ShareStatus.INITIATED) {
-      throw new ConflictException(
-        'تم بدء الدفع بالفعل، هل تريد إلغاءه وإعادة المحاولة؟',
-      );
+      throw new ConflictException('SHARE_ALREADY_INITIATED');
     }
     if (share.status === ShareStatus.SETTLED) {
-      throw new ConflictException('هذا النصيب مدفوع بالفعل');
+      throw new ConflictException('SHARE_ALREADY_SETTLED');
     }
 
     const updated = await this.dataSource.transaction((manager) =>
@@ -152,10 +187,10 @@ export class SharesService {
   async cancelInitiation(shareId: string, userId: string): Promise<Share> {
     const share = await this.getShareOrThrow(shareId);
     if (share.ownerUserId !== userId) {
-      throw new ForbiddenException('هذا النصيب ليس مستحقاً عليك');
+      throw new ForbiddenException('NOT_SHARE_OWNER');
     }
     if (share.status !== ShareStatus.INITIATED) {
-      throw new ConflictException('لا يمكن إلغاء هذا النصيب في حالته الحالية');
+      throw new ConflictException('SHARE_CANNOT_CANCEL');
     }
 
     return this.dataSource.transaction((manager) =>
@@ -170,10 +205,10 @@ export class SharesService {
   async confirmShare(shareId: string, userId: string): Promise<Share> {
     const share = await this.getShareOrThrow(shareId);
     if (share.initiatorUserId !== userId) {
-      throw new ForbiddenException('هذا الإجراء متاح فقط لصاحب الفاتورة');
+      throw new ForbiddenException('NOT_BILL_INITIATOR');
     }
     if (share.status !== ShareStatus.INITIATED) {
-      throw new ConflictException('هذا النصيب مؤكد بالفعل أو لم يبدأ الدفع له بعد');
+      throw new ConflictException('SHARE_NOT_INITIATED');
     }
 
     const updated = await this.dataSource.transaction((manager) =>
@@ -204,10 +239,10 @@ export class SharesService {
   async failShare(shareId: string, userId: string, dto: FailShareDto): Promise<Share> {
     const share = await this.getShareOrThrow(shareId);
     if (share.initiatorUserId !== userId) {
-      throw new ForbiddenException('هذا الإجراء متاح فقط لصاحب الفاتورة');
+      throw new ForbiddenException('NOT_BILL_INITIATOR');
     }
     if (share.status !== ShareStatus.INITIATED && share.status !== ShareStatus.SETTLED) {
-      throw new ConflictException('لا يمكن تعليم هذا النصيب كفاشل في حالته الحالية');
+      throw new ConflictException('SHARE_CANNOT_FAIL');
     }
 
     return this.dataSource.transaction((manager) =>
@@ -225,12 +260,12 @@ export class SharesService {
       where: { id: shareId },
       relations: { owner: true, initiator: true, bill: { group: true } },
     });
-    if (!share) throw new NotFoundException('النصيب غير موجود');
+    if (!share) throw new NotFoundException('SHARE_NOT_FOUND');
     if (share.initiatorUserId !== actorId) {
-      throw new ForbiddenException('هذا الإجراء متاح فقط لصاحب الفاتورة');
+      throw new ForbiddenException('NOT_BILL_INITIATOR');
     }
     if (share.status !== ShareStatus.PENDING && share.status !== ShareStatus.FAILED) {
-      throw new ConflictException('لا يمكن إرسال تذكير لنصيب مدفوع أو قيد المعالجة');
+      throw new ConflictException('SHARE_REMINDER_NOT_ALLOWED');
     }
 
     return this.dataSource.transaction((manager) =>
@@ -246,9 +281,9 @@ export class SharesService {
       where: { billId },
       relations: { owner: true, initiator: true, bill: { group: true } },
     });
-    if (shares.length === 0) throw new NotFoundException('الفاتورة غير موجودة');
+    if (shares.length === 0) throw new NotFoundException('BILL_NOT_FOUND');
     if (shares[0].initiatorUserId !== actorId) {
-      throw new ForbiddenException('هذا الإجراء متاح فقط لصاحب الفاتورة');
+      throw new ForbiddenException('NOT_BILL_INITIATOR');
     }
 
     const eligible = shares.filter(
@@ -370,7 +405,7 @@ export class SharesService {
 
   private async getShareOrThrow(shareId: string): Promise<Share> {
     const share = await this.sharesRepo.findOne({ where: { id: shareId } });
-    if (!share) throw new NotFoundException('النصيب غير موجود');
+    if (!share) throw new NotFoundException('SHARE_NOT_FOUND');
     return share;
   }
 }

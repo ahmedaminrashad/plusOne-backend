@@ -53,7 +53,7 @@ export class BillsService {
       where: { id: billId },
       relations: { paidBy: true },
     });
-    if (!bill) throw new NotFoundException('Bill not found');
+    if (!bill) throw new NotFoundException('BILL_NOT_FOUND');
     await this.assertMember(bill.groupId, userId);
 
     const shares = await this.sharesService.getBillShares(billId);
@@ -64,13 +64,13 @@ export class BillsService {
 
   async deleteBill(billId: string, userId: string): Promise<void> {
     const bill = await this.billsRepo.findOne({ where: { id: billId } });
-    if (!bill) throw new NotFoundException('Bill not found');
+    if (!bill) throw new NotFoundException('BILL_NOT_FOUND');
 
     if (bill.paidByUserId !== userId) {
       const adminMembership = await this.membersRepo.findOne({
         where: { groupId: bill.groupId, userId, status: 'active' as any, role: 'admin' as any },
       });
-      if (!adminMembership) throw new ForbiddenException('Only the payer or a group admin can delete this bill');
+      if (!adminMembership) throw new ForbiddenException('NOT_BILL_OWNER_OR_ADMIN');
     }
     await this.billsRepo.delete(billId);
   }
@@ -84,6 +84,6 @@ export class BillsService {
     const membership = await this.membersRepo.findOne({
       where: { groupId, userId, status: 'active' as any },
     });
-    if (!membership) throw new ForbiddenException('Not an active member of this group');
+    if (!membership) throw new ForbiddenException('GROUP_ACCESS_DENIED');
   }
 }

@@ -6,7 +6,7 @@ export class InviteMembersDto {
   @IsString({ each: true })
   @Matches(/^\+?[1-9]\d{6,14}$/, {
     each: true,
-    message: 'لا يمكن إضافة الأعضاء بدون رقم هاتف صحيح',
+    message: 'PHONE_INVALID',
   })
   phones: string[];
 }

@@ -3,7 +3,7 @@ import { GroupCategory } from '../entities/group.entity';
 
 export class CreateGroupDto {
   @IsString()
-  @Length(1, 50, { message: 'اسم المجموعة طويل جداً (أقصى 50 حرف)' })
+  @Length(1, 50, { message: 'GROUP_NAME_TOO_LONG' })
   name: string;
 
   @IsOptional()

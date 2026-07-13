@@ -32,9 +32,7 @@ export class SharesStateService {
   ): Promise<Share> {
     const allowed = ALLOWED_TRANSITIONS[share.status] ?? [];
     if (!allowed.includes(toState)) {
-      throw new ConflictException(
-        `Cannot transition share from '${share.status}' to '${toState}'`,
-      );
+      throw new ConflictException('INVALID_SHARE_TRANSITION');
     }
 
     const fromState = share.status;

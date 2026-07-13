@@ -153,6 +153,6 @@ export class LedgerService {
     const membership = await this.membersRepo.findOne({
       where: { groupId, userId, status: MemberStatus.ACTIVE },
     });
-    if (!membership) throw new ForbiddenException('ليس لديك صلاحية الوصول إلى هذه المجموعة');
+    if (!membership) throw new ForbiddenException('GROUP_ACCESS_DENIED');
   }
 }

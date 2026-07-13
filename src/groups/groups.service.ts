@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -49,7 +50,7 @@ export class GroupsService {
         where: { id: saved.id },
         relations: { members: { user: true } },
       });
-      if (!result) throw new Error('Group creation failed');
+      if (!result) throw new InternalServerErrorException('GROUP_CREATION_FAILED');
       return result;
     });
   }
@@ -69,7 +70,7 @@ export class GroupsService {
       where: { id: groupId },
       relations: { members: { user: true } },
     });
-    if (!group) throw new NotFoundException('المجموعة غير موجودة');
+    if (!group) throw new NotFoundException('GROUP_NOT_FOUND');
     return group;
   }
 
@@ -155,10 +156,10 @@ export class GroupsService {
       relations: { user: true },
     });
 
-    if (!target) throw new NotFoundException('العضو غير موجود في المجموعة');
+    if (!target) throw new NotFoundException('GROUP_MEMBER_NOT_FOUND');
 
     if (target.userId === adminId) {
-      throw new ForbiddenException('لا يمكنك حذف نفسك من المجموعة');
+      throw new ForbiddenException('CANNOT_REMOVE_SELF');
     }
 
     target.status = MemberStatus.REMOVED;
@@ -195,7 +196,7 @@ export class GroupsService {
     const membership = await this.membersRepo.findOne({
       where: { id: membershipId, userId, status: MemberStatus.PENDING },
     });
-    if (!membership) throw new NotFoundException('الدعوة غير موجودة');
+    if (!membership) throw new NotFoundException('INVITATION_NOT_FOUND');
     membership.status = MemberStatus.ACTIVE;
     await this.membersRepo.save(membership);
 
@@ -222,7 +223,7 @@ export class GroupsService {
     const membership = await this.membersRepo.findOne({
       where: { id: membershipId, userId, status: MemberStatus.PENDING },
     });
-    if (!membership) throw new NotFoundException('الدعوة غير موجودة');
+    if (!membership) throw new NotFoundException('INVITATION_NOT_FOUND');
     membership.status = MemberStatus.REMOVED;
     membership.removedBy = userId;
     await this.membersRepo.save(membership);
@@ -265,7 +266,7 @@ export class GroupsService {
     const membership = await this.membersRepo.findOne({
       where: { groupId, userId, status: MemberStatus.ACTIVE },
     });
-    if (!membership) throw new ForbiddenException('ليس لديك صلاحية الوصول إلى هذه المجموعة');
+    if (!membership) throw new ForbiddenException('GROUP_ACCESS_DENIED');
     return membership;
   }
 
@@ -273,7 +274,7 @@ export class GroupsService {
     const membership = await this.membersRepo.findOne({
       where: { groupId, userId, role: MemberRole.ADMIN, status: MemberStatus.ACTIVE },
     });
-    if (!membership) throw new ForbiddenException('فقط المسؤولون يمكنهم إزالة الأعضاء');
+    if (!membership) throw new ForbiddenException('ADMIN_ONLY_ACTION');
     return membership;
   }
 }

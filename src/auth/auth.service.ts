@@ -47,9 +47,7 @@ export class AuthService {
 
     if (recent) {
       if (recent.lockedUntil && recent.lockedUntil > new Date()) {
-        throw new BadRequestException(
-          'لقد تجاوزت عدد المحاولات المسموح بها، حاول مرة أخرى بعد 15 دقيقة',
-        );
+        throw new BadRequestException('OTP_RATE_LIMITED');
       }
 
       const cooldownEnd = new Date(recent.createdAt.getTime() + OTP_RESEND_COOLDOWN_SECONDS * 1000);
@@ -91,17 +89,15 @@ export class AuthService {
     });
 
     if (!otpRecord) {
-      throw new BadRequestException('الكود الذي أدخلته غير صحيح');
+      throw new BadRequestException('OTP_INVALID');
     }
 
     if (otpRecord.lockedUntil && otpRecord.lockedUntil > new Date()) {
-      throw new BadRequestException(
-        'لقد تجاوزت عدد المحاولات المسموح بها، حاول مرة أخرى بعد 15 دقيقة',
-      );
+      throw new BadRequestException('OTP_RATE_LIMITED');
     }
 
     if (otpRecord.expiresAt < new Date()) {
-      throw new BadRequestException('انتهت صلاحية الكود، يُرجى طلب كود جديد');
+      throw new BadRequestException('OTP_EXPIRED');
     }
 
     if (otpRecord.code !== code) {
@@ -112,7 +108,7 @@ export class AuthService {
       }
 
       await this.otpRepo.save(otpRecord);
-      throw new BadRequestException('الكود الذي أدخلته غير صحيح');
+      throw new BadRequestException('OTP_INVALID');
     }
 
     otpRecord.used = true;
@@ -137,7 +133,7 @@ export class AuthService {
     });
 
     if (!record || record.expiresAt < new Date()) {
-      throw new UnauthorizedException('Refresh token invalid or expired');
+      throw new UnauthorizedException('REFRESH_TOKEN_INVALID');
     }
 
     record.revoked = true;
