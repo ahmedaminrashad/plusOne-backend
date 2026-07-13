@@ -47,6 +47,28 @@ export const notificationTexts = {
         };
   },
 
+  shareUpdated(
+    language: AppLanguage,
+    params: { editorName: string; amountPiastres: number; currency: string; billTitle: string },
+  ): NotificationText {
+    const amount = formatAmount(params.amountPiastres, params.currency, language);
+    return language === 'en'
+      ? {
+          title: 'Your share changed',
+          body: `${params.editorName} updated ${params.billTitle} — your share is now ${amount}`,
+        }
+      : { title: 'تغيّر نصيبك', body: `${params.editorName} عدّل ${params.billTitle} — نصيبك الآن ${amount}` };
+  },
+
+  shareRemoved(
+    language: AppLanguage,
+    params: { editorName: string; billTitle: string },
+  ): NotificationText {
+    return language === 'en'
+      ? { title: 'Removed from a bill', body: `${params.editorName} removed you from ${params.billTitle} — you no longer owe anything on it` }
+      : { title: 'تمت إزالتك من فاتورة', body: `${params.editorName} أزالك من ${params.billTitle} — لا يوجد عليك أي مبلغ فيها بعد الآن` };
+  },
+
   shareInitiated(
     language: AppLanguage,
     params: { ownerName: string; amountPiastres: number; currency: string; billTitle: string },

@@ -122,6 +122,9 @@ export class SharesService {
 
     const keepShareIds = new Set<string>();
     const result: Share[] = [];
+    const created: Share[] = [];
+    const updated: Share[] = [];
+    const cancelled: Share[] = [];
 
     for (const dto of dtos) {
       const member = memberById.get(dto.groupMemberId);
@@ -140,12 +143,14 @@ export class SharesService {
         if (existing.status !== ShareStatus.PENDING) {
           throw new ConflictException('BILL_CLOSED');
         }
+        const amountChanged = existing.amountPiastres !== dto.amountPiastres;
         existing.amountPiastres = dto.amountPiastres;
         const saved = await manager.save(existing);
         keepShareIds.add(saved.id);
         result.push(saved);
+        if (amountChanged) updated.push(saved);
       } else {
-        const created = manager.create(Share, {
+        const newShare = manager.create(Share, {
           billId: bill.id,
           groupId: bill.groupId,
           initiatorUserId: bill.paidByUserId,
@@ -156,24 +161,92 @@ export class SharesService {
           status: ShareStatus.PENDING,
           method: ShareMethod.INSTAPAY,
         });
-        const saved = await manager.save(Share, created);
+        const saved = await manager.save(Share, newShare);
         saved.reference = `+one-${bill.id.slice(0, 8)}-${saved.id.slice(0, 8)}`;
         const withRef = await manager.save(Share, saved);
         keepShareIds.add(withRef.id);
         result.push(withRef);
+        created.push(withRef);
       }
     }
 
     for (const share of existingShares) {
       if (keepShareIds.has(share.id) || share.status !== ShareStatus.PENDING) continue;
-      await this.stateService.transition(manager, share, ShareStatus.CANCELLED, {
+      const withdrawn = await this.stateService.transition(manager, share, ShareStatus.CANCELLED, {
         actor: actorUserId,
         source: AuditSource.USER,
         reason: 'removed_from_bill_items',
       });
+      cancelled.push(withdrawn);
     }
 
+    await this.notifyReconciledShares(manager, bill, actorUserId, created, updated, cancelled);
+
     return result;
+  }
+
+  private async notifyReconciledShares(
+    manager: EntityManager,
+    bill: Bill,
+    actorUserId: string,
+    created: Share[],
+    updated: Share[],
+    cancelled: Share[],
+  ): Promise<void> {
+    const ownerIds = [...created, ...updated, ...cancelled]
+      .map((s) => s.ownerUserId)
+      .filter((id): id is string => !!id);
+    if (ownerIds.length === 0) return;
+
+    const [editor, group, owners] = await Promise.all([
+      manager.findOne(User, { where: { id: actorUserId } }),
+      manager.findOne(Group, { where: { id: bill.groupId } }),
+      manager.find(User, { where: { id: In(ownerIds) } }),
+    ]);
+    const ownerById = new Map(owners.map((u) => [u.id, u]));
+
+    for (const share of created) {
+      const owner = share.ownerUserId ? ownerById.get(share.ownerUserId) : undefined;
+      if (!owner?.fcmToken) continue;
+      await this.notifications.send(
+        owner.fcmToken,
+        notificationTexts.shareAssigned(owner.language, {
+          initiatorName: editor?.displayName ?? (owner.language === 'en' ? 'A friend' : 'صديقك'),
+          groupName: group?.name ?? '',
+          amountPiastres: share.amountPiastres,
+          currency: share.currency,
+        }),
+        { type: 'share_assigned', groupId: bill.groupId, billId: bill.id },
+      );
+    }
+
+    for (const share of updated) {
+      const owner = share.ownerUserId ? ownerById.get(share.ownerUserId) : undefined;
+      if (!owner?.fcmToken) continue;
+      await this.notifications.send(
+        owner.fcmToken,
+        notificationTexts.shareUpdated(owner.language, {
+          editorName: editor?.displayName ?? (owner.language === 'en' ? 'A friend' : 'صديقك'),
+          amountPiastres: share.amountPiastres,
+          currency: share.currency,
+          billTitle: bill.title ?? (owner.language === 'en' ? 'the bill' : 'الفاتورة'),
+        }),
+        { type: 'share_updated', groupId: bill.groupId, billId: bill.id, shareId: share.id },
+      );
+    }
+
+    for (const share of cancelled) {
+      const owner = share.ownerUserId ? ownerById.get(share.ownerUserId) : undefined;
+      if (!owner?.fcmToken) continue;
+      await this.notifications.send(
+        owner.fcmToken,
+        notificationTexts.shareRemoved(owner.language, {
+          editorName: editor?.displayName ?? (owner.language === 'en' ? 'A friend' : 'صديقك'),
+          billTitle: bill.title ?? (owner.language === 'en' ? 'the bill' : 'الفاتورة'),
+        }),
+        { type: 'share_removed', groupId: bill.groupId, billId: bill.id, shareId: share.id },
+      );
+    }
   }
 
   private async notifyAssignedShares(
