@@ -6,11 +6,13 @@ import { BillsController } from './bills.controller';
 import { Bill } from './entities/bill.entity';
 import { GroupMember } from '../groups/entities/group-member.entity';
 import { QrParserService } from './qr-parser/qr-parser.service';
+import { SharesModule } from '../shares/shares.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Bill, GroupMember]),
     MulterModule.register({ limits: { fileSize: 10 * 1024 * 1024 } }),
+    SharesModule,
   ],
   controllers: [BillsController],
   providers: [BillsService, QrParserService],

@@ -6,6 +6,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  ValueTransformer,
 } from 'typeorm';
 import { Group } from '../../groups/entities/group.entity';
 import { User } from '../../users/entities/user.entity';
@@ -15,6 +16,12 @@ export interface BillLineItem {
   qty: number;
   unitPrice: number;
 }
+
+// mysql2 returns DECIMAL columns as strings; coerce to number so callers can safely do arithmetic/.toFixed() on them.
+const decimalTransformer: ValueTransformer = {
+  to: (value: number | null | undefined) => value,
+  from: (value: string | null) => (value === null ? null : parseFloat(value)),
+};
 
 @Entity('bills')
 export class Bill {
@@ -31,7 +38,7 @@ export class Bill {
   @Column({ type: 'varchar', nullable: true, default: null })
   title: string | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, transformer: decimalTransformer })
   amount: number;
 
   @Column({ default: 'EGP' })
@@ -62,19 +69,19 @@ export class Bill {
   @Column({ type: 'json', nullable: true })
   lineItems: BillLineItem[] | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, transformer: decimalTransformer })
   tax: number | null;
 
   @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })
   taxType: 'percent' | 'amount' | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, transformer: decimalTransformer })
   service: number | null;
 
   @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })
   serviceType: 'percent' | 'amount' | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, transformer: decimalTransformer })
   tip: number | null;
 
   @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })

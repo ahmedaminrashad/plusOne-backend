@@ -1,0 +1,72 @@
+import { Injectable, ConflictException } from '@nestjs/common';
+import { EntityManager } from 'typeorm';
+import { Share, ShareStatus, ShareFailureReason } from './entities/share.entity';
+import { AuditLogService } from '../audit/audit-log.service';
+import { AuditSource } from '../audit/entities/audit-log.entity';
+
+const ALLOWED_TRANSITIONS: Record<ShareStatus, ShareStatus[]> = {
+  [ShareStatus.PENDING]: [ShareStatus.INITIATED, ShareStatus.CANCELLED],
+  [ShareStatus.FAILED]: [ShareStatus.INITIATED],
+  [ShareStatus.INITIATED]: [ShareStatus.PENDING, ShareStatus.SETTLED, ShareStatus.FAILED],
+  [ShareStatus.SETTLED]: [ShareStatus.FAILED],
+  [ShareStatus.CANCELLED]: [],
+};
+
+export interface TransitionOptions {
+  actor: string | null;
+  source: AuditSource;
+  reason?: string | null;
+  failureReason?: ShareFailureReason | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+@Injectable()
+export class SharesStateService {
+  constructor(private readonly auditLog: AuditLogService) {}
+
+  async transition(
+    manager: EntityManager,
+    share: Share,
+    toState: ShareStatus,
+    options: TransitionOptions,
+  ): Promise<Share> {
+    const allowed = ALLOWED_TRANSITIONS[share.status] ?? [];
+    if (!allowed.includes(toState)) {
+      throw new ConflictException(
+        `Cannot transition share from '${share.status}' to '${toState}'`,
+      );
+    }
+
+    const fromState = share.status;
+    share.status = toState;
+
+    if (toState === ShareStatus.INITIATED) {
+      share.initiatedAt = new Date();
+      share.failureReason = null;
+    }
+    if (toState === ShareStatus.PENDING) {
+      share.initiatedAt = null;
+      share.failureReason = null;
+    }
+    if (toState === ShareStatus.FAILED) {
+      share.failureReason = options.failureReason ?? null;
+    }
+    if (toState === ShareStatus.SETTLED) {
+      share.failureReason = null;
+    }
+
+    const saved = await manager.save(share);
+
+    await this.auditLog.record(manager, {
+      shareId: saved.id,
+      fromState,
+      toState,
+      actor: options.actor,
+      source: options.source,
+      reason: options.reason,
+      metadata: options.metadata,
+    });
+
+    return saved;
+  }
+}

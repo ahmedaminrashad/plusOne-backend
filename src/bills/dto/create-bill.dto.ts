@@ -11,6 +11,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CreateShareDto } from '../../shares/dto/create-share.dto';
 
 export class LineItemDto {
   @IsString()
@@ -105,4 +106,10 @@ export class CreateBillDto {
   @IsOptional()
   @IsEnum(['percent', 'amount'])
   tipType?: 'percent' | 'amount';
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateShareDto)
+  shares?: CreateShareDto[];
 }

@@ -1,5 +1,5 @@
 -- PlusOne Database Schema (MySQL)
--- Last updated: 2026-06-26
+-- Last updated: 2026-07-13
 -- Source of truth: sync this file on every entity change.
 
 CREATE TABLE `users` (
@@ -105,4 +105,56 @@ CREATE TABLE `bills` (
     FOREIGN KEY (`groupId`) REFERENCES `groups` (`id`) ON DELETE CASCADE,
   CONSTRAINT `FK_bills_paidByUserId`
     FOREIGN KEY (`paidByUserId`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE `shares` (
+  `id`                  VARCHAR(36)                                                              NOT NULL,
+  `billId`               VARCHAR(36)                                                              NOT NULL,
+  `groupId`              VARCHAR(36)                                                              NOT NULL,
+  `initiatorUserId`      VARCHAR(36)                                                              NOT NULL,
+  `ownerUserId`          VARCHAR(36)                                                              NULL,
+  `ownerPendingPhone`    VARCHAR(255)                                                             NULL,
+  `amountPiastres`       INT                                                                      NOT NULL,
+  `currency`             VARCHAR(10)                                                              NOT NULL DEFAULT 'EGP',
+  `status`               ENUM('pending','initiated','settled','cancelled','failed')                NOT NULL DEFAULT 'pending',
+  `method`               ENUM('instapay','card')                                                  NOT NULL DEFAULT 'instapay',
+  `reference`            VARCHAR(40)                                                              NULL,
+  `failureReason`        ENUM('payment_not_received','member_cancelled','wrong_amount','confirmed_by_mistake','other') NULL,
+  `initiatedAt`          DATETIME(6)                                                              NULL,
+  `lastReminderSentAt`   DATETIME(6)                                                              NULL,
+  `createdAt`            DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt`            DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `UQ_shares_billId_ownerUserId`       (`billId`, `ownerUserId`),
+  UNIQUE KEY `UQ_shares_billId_ownerPendingPhone` (`billId`, `ownerPendingPhone`),
+  INDEX `IDX_shares_billId` (`billId`),
+  INDEX `IDX_shares_groupId` (`groupId`),
+  INDEX `IDX_shares_initiatorUserId` (`initiatorUserId`),
+  INDEX `IDX_shares_ownerUserId` (`ownerUserId`),
+  CONSTRAINT `FK_shares_billId`
+    FOREIGN KEY (`billId`) REFERENCES `bills` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `FK_shares_groupId`
+    FOREIGN KEY (`groupId`) REFERENCES `groups` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `FK_shares_initiatorUserId`
+    FOREIGN KEY (`initiatorUserId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `FK_shares_ownerUserId`
+    FOREIGN KEY (`ownerUserId`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE `audit_log` (
+  `id`         VARCHAR(36)                                          NOT NULL,
+  `shareId`    VARCHAR(36)                                          NOT NULL,
+  `fromState`  VARCHAR(20)                                          NULL,
+  `toState`    VARCHAR(20)                                          NOT NULL,
+  `actor`      VARCHAR(36)                                          NULL,
+  `source`     ENUM('user','webhook','reminder-job','system')       NOT NULL,
+  `reason`     VARCHAR(255)                                         NULL,
+  `metadata`   JSON                                                 NULL,
+  `createdAt`  DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  INDEX `IDX_audit_log_shareId` (`shareId`),
+  CONSTRAINT `FK_audit_log_shareId`
+    FOREIGN KEY (`shareId`) REFERENCES `shares` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

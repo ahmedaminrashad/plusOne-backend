@@ -27,6 +27,11 @@ export class BillsController {
     return this.billsService.getGroupBills(groupId, user.id);
   }
 
+  @Get(':id')
+  getBillDetail(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.billsService.getBillDetail(id, user.id);
+  }
+
   @Post('group/:groupId')
   createBill(
     @Param('groupId') groupId: string,
