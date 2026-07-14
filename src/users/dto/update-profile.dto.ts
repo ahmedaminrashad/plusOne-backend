@@ -15,7 +15,7 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^[a-zA-Z0-9._@-]{3,50}$/, {
+  @Matches(/^\+?[a-zA-Z0-9._@-]{3,50}$/, {
     message: 'INSTAPAY_ALIAS_INVALID',
   })
   instaPayAlias?: string;
