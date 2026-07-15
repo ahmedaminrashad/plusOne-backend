@@ -8,12 +8,13 @@ import { GroupsController } from './groups.controller';
 import { GroupsService } from './groups.service';
 import { Group } from './entities/group.entity';
 import { GroupMember } from './entities/group-member.entity';
+import { Message } from './entities/message.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, GroupMember, User]),
+    TypeOrmModule.forFeature([Group, GroupMember, Message, User]),
     NotificationsModule,
     MulterModule.register({
       storage: diskStorage({

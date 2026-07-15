@@ -1,4 +1,5 @@
-import { unlink } from 'fs/promises';
+import { unlink, writeFile } from 'fs/promises';
+import sharp from 'sharp';
 import {
   Injectable,
   NotFoundException,
@@ -12,11 +13,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Group } from './entities/group.entity';
 import { GroupMember, MemberRole, MemberStatus } from './entities/group-member.entity';
+import { Message } from './entities/message.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
+import { CreateMessageDto } from './dto/create-message.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { notificationTexts } from '../notifications/notification-texts';
+
+export interface MessageResponse {
+  id: string;
+  groupId: string;
+  senderId: string;
+  senderName: string;
+  senderPhoto: string | null;
+  text: string | null;
+  imageUrl: string | null;
+  createdAt: string;
+}
 
 @Injectable()
 export class GroupsService {
@@ -27,6 +41,8 @@ export class GroupsService {
     private readonly groupsRepo: Repository<Group>,
     @InjectRepository(GroupMember)
     private readonly membersRepo: Repository<GroupMember>,
+    @InjectRepository(Message)
+    private readonly messagesRepo: Repository<Message>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
     private readonly dataSource: DataSource,
@@ -244,24 +260,72 @@ export class GroupsService {
     });
   }
 
-  async sendChatNotification(
-    groupId: string,
-    senderId: string,
-    senderName: string,
-    messagePreview: string,
-  ): Promise<void> {
+  async sendMessage(groupId: string, senderId: string, dto: CreateMessageDto): Promise<MessageResponse> {
+    await this.assertMembership(groupId, senderId);
+
+    const text = dto.text?.trim() || null;
+    if (!text && !dto.imageUrl) {
+      throw new BadRequestException('MESSAGE_TEXT_OR_IMAGE_REQUIRED');
+    }
+
+    const saved = await this.messagesRepo.save({
+      groupId,
+      senderId,
+      text,
+      imageUrl: dto.imageUrl ?? null,
+    });
+
+    const full = await this.messagesRepo.findOne({
+      where: { id: saved.id },
+      relations: { sender: true },
+    });
+    if (!full) throw new InternalServerErrorException('MESSAGE_CREATION_FAILED');
+
+    // Fire-and-forget — a notification failure shouldn't fail the send.
+    this.notifyGroupChat(groupId, senderId, full).catch(() => {});
+
+    return this.toMessageResponse(full);
+  }
+
+  async getMessages(groupId: string, userId: string, limit: number): Promise<MessageResponse[]> {
+    await this.assertMembership(groupId, userId);
+    const messages = await this.messagesRepo.find({
+      where: { groupId },
+      relations: { sender: true },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+    return messages.map((m) => this.toMessageResponse(m));
+  }
+
+  private toMessageResponse(message: Message): MessageResponse {
+    return {
+      id: message.id,
+      groupId: message.groupId,
+      senderId: message.senderId,
+      senderName: message.sender.displayName ?? 'User',
+      senderPhoto: message.sender.photoUrl ?? null,
+      text: message.text,
+      imageUrl: message.imageUrl,
+      createdAt: message.createdAt.toISOString(),
+    };
+  }
+
+  private async notifyGroupChat(groupId: string, senderId: string, message: Message): Promise<void> {
     const members = await this.membersRepo.find({
       where: { groupId, status: MemberStatus.ACTIVE },
       relations: { user: true },
     });
 
     const recipients = members.filter((m) => m.userId && m.userId !== senderId && m.user?.fcmToken);
+    const senderName = message.sender.displayName ?? 'User';
+    const preview = message.imageUrl ? '📷 Photo' : (message.text ?? '');
 
     await Promise.allSettled(
       recipients.map((m) =>
         this.notifications.send(
           m.user!.fcmToken!,
-          { title: senderName, body: messagePreview },
+          { title: senderName, body: preview },
           { type: 'chat_message', groupId },
         ),
       ),
@@ -280,6 +344,16 @@ export class GroupsService {
       await unlink(file.path).catch(() => {});
       throw err;
     }
+
+    // Photos shared in at full camera resolution can be several MB — downscale to a
+    // size sane for a chat thumbnail so it actually loads promptly on-device.
+    const resized = await sharp(file.path)
+      .rotate()
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    await writeFile(file.path, resized);
+
     return { url: `/uploads/chat/${file.filename}` };
   }
 

@@ -1,5 +1,5 @@
 -- PlusOne Database Schema (MySQL)
--- Last updated: 2026-07-13 (added bills.closedAt)
+-- Last updated: 2026-07-15 (added messages table — group chat moved off Firestore)
 -- Source of truth: sync this file on every entity change.
 
 CREATE TABLE `users` (
@@ -142,6 +142,22 @@ CREATE TABLE `shares` (
     FOREIGN KEY (`initiatorUserId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `FK_shares_ownerUserId`
     FOREIGN KEY (`ownerUserId`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE `messages` (
+  `id`        VARCHAR(36)   NOT NULL,
+  `groupId`   VARCHAR(36)   NOT NULL,
+  `senderId`  VARCHAR(36)   NOT NULL,
+  `text`      TEXT          NULL,
+  `imageUrl`  VARCHAR(500)  NULL,
+  `createdAt` DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  INDEX `IDX_messages_groupId_createdAt` (`groupId`, `createdAt`),
+  CONSTRAINT `FK_messages_groupId`
+    FOREIGN KEY (`groupId`) REFERENCES `groups` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `FK_messages_senderId`
+    FOREIGN KEY (`senderId`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

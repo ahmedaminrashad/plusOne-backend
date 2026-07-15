@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -16,7 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
-import { ChatNotificationDto } from './dto/chat-notification.dto';
+import { CreateMessageDto } from './dto/create-message.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -93,13 +94,22 @@ export class GroupsController {
     return this.groupsService.uploadChatImage(id, user.id, file);
   }
 
-  @Post(':id/chat-notification')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  sendChatNotification(
+  @Post(':id/messages')
+  sendMessage(
     @CurrentUser() user: User,
     @Param('id') id: string,
-    @Body() dto: ChatNotificationDto,
+    @Body() dto: CreateMessageDto,
   ) {
-    return this.groupsService.sendChatNotification(id, user.id, dto.senderName, dto.messagePreview);
+    return this.groupsService.sendMessage(id, user.id, dto);
+  }
+
+  @Get(':id/messages')
+  getMessages(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = Math.min(Math.max(parseInt(limit ?? '30', 10) || 30, 1), 200);
+    return this.groupsService.getMessages(id, user.id, parsedLimit);
   }
 }
