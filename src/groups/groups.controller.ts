@@ -7,9 +7,12 @@ import {
   Body,
   Param,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
@@ -78,6 +81,16 @@ export class GroupsController {
     @Param('memberId') memberId: string,
   ) {
     return this.groupsService.removeMember(id, user.id, memberId);
+  }
+
+  @Post(':id/chat-image')
+  @UseInterceptors(FileInterceptor('image'))
+  uploadChatImage(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.groupsService.uploadChatImage(id, user.id, file);
   }
 
   @Post(':id/chat-notification')

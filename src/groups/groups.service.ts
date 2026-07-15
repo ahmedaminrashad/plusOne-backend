@@ -1,9 +1,11 @@
+import { unlink } from 'fs/promises';
 import {
   Injectable,
   NotFoundException,
   ForbiddenException,
   ConflictException,
   InternalServerErrorException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -264,6 +266,21 @@ export class GroupsService {
         ),
       ),
     );
+  }
+
+  async uploadChatImage(
+    groupId: string,
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<{ url: string }> {
+    if (!file) throw new BadRequestException('IMAGE_FILE_REQUIRED');
+    try {
+      await this.assertMembership(groupId, userId);
+    } catch (err) {
+      await unlink(file.path).catch(() => {});
+      throw err;
+    }
+    return { url: `/uploads/chat/${file.filename}` };
   }
 
   private async assertMembership(groupId: string, userId: string): Promise<GroupMember> {
