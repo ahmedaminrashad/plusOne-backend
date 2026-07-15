@@ -30,6 +30,7 @@ export class UsersService {
   }
 
   async updateProfile(id: string, dto: UpdateProfileDto): Promise<User> {
+    console.log('Updating profile for user ID:', id, 'with data:', dto);
     const user = await this.findById(id);
 
     if (dto.displayName !== undefined) user.displayName = dto.displayName;
