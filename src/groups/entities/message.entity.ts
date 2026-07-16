@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Group } from './group.entity';
 import { User } from '../../users/entities/user.entity';
+import { Bill } from '../../bills/entities/bill.entity';
 
 @Entity('messages')
 export class Message {
@@ -33,6 +34,13 @@ export class Message {
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   imageUrl: string | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  billId: string | null;
+
+  @ManyToOne(() => Bill, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'billId' })
+  bill: Bill | null;
 
   @CreateDateColumn()
   createdAt: Date;

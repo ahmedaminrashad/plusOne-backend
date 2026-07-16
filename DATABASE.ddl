@@ -1,5 +1,5 @@
 -- PlusOne Database Schema (MySQL)
--- Last updated: 2026-07-15 (added messages table — group chat moved off Firestore)
+-- Last updated: 2026-07-16 (messages.billId — receipts shared into group chat)
 -- Source of truth: sync this file on every entity change.
 
 CREATE TABLE `users` (
@@ -151,13 +151,17 @@ CREATE TABLE `messages` (
   `senderId`  VARCHAR(36)   NOT NULL,
   `text`      TEXT          NULL,
   `imageUrl`  VARCHAR(500)  NULL,
+  `billId`    VARCHAR(36)   NULL DEFAULT NULL, -- set when a member shares a receipt into the group chat; message renders as a receipt card
   `createdAt` DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
   INDEX `IDX_messages_groupId_createdAt` (`groupId`, `createdAt`),
+  INDEX `IDX_messages_billId` (`billId`),
   CONSTRAINT `FK_messages_groupId`
     FOREIGN KEY (`groupId`) REFERENCES `groups` (`id`) ON DELETE CASCADE,
   CONSTRAINT `FK_messages_senderId`
-    FOREIGN KEY (`senderId`) REFERENCES `users` (`id`) ON DELETE CASCADE
+    FOREIGN KEY (`senderId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `FK_messages_billId`
+    FOREIGN KEY (`billId`) REFERENCES `bills` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

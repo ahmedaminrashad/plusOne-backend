@@ -21,6 +21,17 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { notificationTexts } from '../notifications/notification-texts';
 
+export interface BillSummary {
+  id: string;
+  title: string | null;
+  amount: number;
+  currency: string;
+  paidByUserId: string;
+  paidByName: string | null;
+  itemCount: number;
+  closedAt: string | null;
+}
+
 export interface MessageResponse {
   id: string;
   groupId: string;
@@ -29,6 +40,8 @@ export interface MessageResponse {
   senderPhoto: string | null;
   text: string | null;
   imageUrl: string | null;
+  billId: string | null;
+  bill: BillSummary | null;
   createdAt: string;
 }
 
@@ -277,7 +290,7 @@ export class GroupsService {
 
     const full = await this.messagesRepo.findOne({
       where: { id: saved.id },
-      relations: { sender: true },
+      relations: { sender: true, bill: { paidBy: true } },
     });
     if (!full) throw new InternalServerErrorException('MESSAGE_CREATION_FAILED');
 
@@ -291,7 +304,7 @@ export class GroupsService {
     await this.assertMembership(groupId, userId);
     const messages = await this.messagesRepo.find({
       where: { groupId },
-      relations: { sender: true },
+      relations: { sender: true, bill: { paidBy: true } },
       order: { createdAt: 'DESC' },
       take: limit,
     });
@@ -307,6 +320,19 @@ export class GroupsService {
       senderPhoto: message.sender.photoUrl ?? null,
       text: message.text,
       imageUrl: message.imageUrl,
+      billId: message.billId,
+      bill: message.bill
+        ? {
+            id: message.bill.id,
+            title: message.bill.title,
+            amount: message.bill.amount,
+            currency: message.bill.currency,
+            paidByUserId: message.bill.paidByUserId,
+            paidByName: message.bill.paidBy?.displayName ?? null,
+            itemCount: message.bill.lineItems?.length ?? 0,
+            closedAt: message.bill.closedAt ? message.bill.closedAt.toISOString() : null,
+          }
+        : null,
       createdAt: message.createdAt.toISOString(),
     };
   }

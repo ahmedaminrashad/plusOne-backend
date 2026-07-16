@@ -3,10 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Bill, BillLineItem } from './entities/bill.entity';
 import { GroupMember } from '../groups/entities/group-member.entity';
+import { Message } from '../groups/entities/message.entity';
 import { CreateBillDto } from './dto/create-bill.dto';
 import { UpdateBillItemsDto } from './dto/update-bill-items.dto';
 import { QrParserService, QrParseResult } from './qr-parser/qr-parser.service';
 import { SharesService } from '../shares/shares.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class BillsService {
@@ -16,6 +18,7 @@ export class BillsService {
     private readonly dataSource: DataSource,
     private readonly qrParser: QrParserService,
     private readonly sharesService: SharesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getGroupBills(groupId: string, userId: string): Promise<Bill[]> {
@@ -28,7 +31,7 @@ export class BillsService {
   }
 
   async createBill(groupId: string, userId: string, dto: CreateBillDto): Promise<Bill> {
-    await this.assertMember(groupId, userId);
+    const membership = await this.assertMember(groupId, userId);
     const { shares, ...billFields } = dto;
     const title = dto.title || dto.venueName || 'فاتورة';
 
@@ -43,10 +46,24 @@ export class BillsService {
       if (shares && shares.length > 0) {
         await this.sharesService.createSharesForBill(manager, saved, shares);
       }
+      // Sharing the receipt into the group chat is part of creating it — any member
+      // can then open it straight from the chat feed to add/claim items.
+      await manager.save(Message, {
+        groupId,
+        senderId: userId,
+        billId: saved.id,
+      });
       return saved.id;
     });
 
-    return this.billsRepo.findOne({ where: { id: savedId }, relations: { paidBy: true } }) as Promise<Bill>;
+    const result = (await this.billsRepo.findOne({
+      where: { id: savedId },
+      relations: { paidBy: true },
+    })) as Bill;
+
+    this.notifyBillShared(groupId, userId, membership.user?.displayName ?? null, result).catch(() => {});
+
+    return result;
   }
 
   async getBillDetail(
@@ -119,10 +136,35 @@ export class BillsService {
     return this.qrParser.parse(payload);
   }
 
-  private async assertMember(groupId: string, userId: string): Promise<void> {
+  private async notifyBillShared(
+    groupId: string,
+    senderId: string,
+    senderName: string | null,
+    bill: Bill,
+  ): Promise<void> {
+    const members = await this.membersRepo.find({
+      where: { groupId, status: 'active' as any },
+      relations: { user: true },
+    });
+    const recipients = members.filter((m) => m.userId && m.userId !== senderId && m.user?.fcmToken);
+
+    await Promise.allSettled(
+      recipients.map((m) =>
+        this.notifications.send(
+          m.user!.fcmToken!,
+          { title: senderName ?? 'User', body: `🧾 ${bill.title ?? 'Receipt'} — ${bill.amount} ${bill.currency}` },
+          { type: 'chat_message', groupId },
+        ),
+      ),
+    );
+  }
+
+  private async assertMember(groupId: string, userId: string): Promise<GroupMember> {
     const membership = await this.membersRepo.findOne({
       where: { groupId, userId, status: 'active' as any },
+      relations: { user: true },
     });
     if (!membership) throw new ForbiddenException('GROUP_ACCESS_DENIED');
+    return membership;
   }
 }
