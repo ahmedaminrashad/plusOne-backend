@@ -22,6 +22,10 @@ export class UsersService {
   }
 
   async saveFcmToken(id: string, fcmToken: string): Promise<void> {
+    // A device's token can only be valid for one logged-in account at a time —
+    // if another user previously registered this same device, drop it from them
+    // first so they stop receiving pushes meant for whoever is logged in now.
+    await this.usersRepo.update({ fcmToken }, { fcmToken: null as unknown as string });
     await this.usersRepo.update(id, { fcmToken });
   }
 

@@ -144,7 +144,12 @@ export class AuthService {
   }
 
   async revokeRefreshToken(token: string): Promise<void> {
+    const record = await this.refreshTokenRepo.findOne({ where: { token } });
     await this.refreshTokenRepo.update({ token }, { revoked: true });
+    // Stop sending this device pushes for the account that just logged out of it.
+    if (record) {
+      await this.usersRepo.update(record.userId, { fcmToken: null as unknown as string });
+    }
   }
 
   private async migratePendingInvitations(phone: string, userId: string): Promise<void> {
