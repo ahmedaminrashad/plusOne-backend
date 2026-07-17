@@ -248,7 +248,7 @@ export class GroupsService {
             userName: user?.displayName ?? (admin.user.language === 'en' ? 'A user' : 'مستخدم'),
             groupName: group?.name ?? '',
           }),
-          { type: 'member_joined', groupId: membership.groupId },
+          { type: 'member_joined', groupId: membership.groupId, groupName: group?.name ?? '' },
         );
       }
     }
@@ -338,10 +338,13 @@ export class GroupsService {
   }
 
   private async notifyGroupChat(groupId: string, senderId: string, message: Message): Promise<void> {
-    const members = await this.membersRepo.find({
-      where: { groupId, status: MemberStatus.ACTIVE },
-      relations: { user: true },
-    });
+    const [members, group] = await Promise.all([
+      this.membersRepo.find({
+        where: { groupId, status: MemberStatus.ACTIVE },
+        relations: { user: true },
+      }),
+      this.groupsRepo.findOne({ where: { id: groupId } }),
+    ]);
 
     const recipients = members.filter((m) => m.userId && m.userId !== senderId && m.user?.fcmToken);
     const senderName = message.sender.displayName ?? 'User';
@@ -352,7 +355,7 @@ export class GroupsService {
         this.notifications.send(
           m.user!.fcmToken!,
           { title: senderName, body: preview },
-          { type: 'chat_message', groupId },
+          { type: 'chat_message', groupId, groupName: group?.name ?? '' },
         ),
       ),
     );
