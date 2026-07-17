@@ -11,9 +11,5 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
-  photoUrl?: string;
-
-  @IsOptional()
-  @IsString()
   instaPayAlias?: string;
 }

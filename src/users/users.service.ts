@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { writeFile } from 'fs/promises';
+import sharp from 'sharp';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -38,12 +40,26 @@ export class UsersService {
     const user = await this.findById(id);
 
     if (dto.displayName !== undefined) user.displayName = dto.displayName;
-    if (dto.photoUrl !== undefined) user.photoUrl = dto.photoUrl;
     if (dto.instaPayAlias !== undefined) user.instaPayAlias = dto.instaPayAlias;
 
     const hasRequiredFields = !!user.displayName;
     user.isProfileComplete = hasRequiredFields;
 
     return this.usersRepo.save(user);
+  }
+
+  async uploadProfilePhoto(userId: string, file: Express.Multer.File): Promise<{ url: string }> {
+    if (!file) throw new BadRequestException('IMAGE_FILE_REQUIRED');
+
+    const resized = await sharp(file.path)
+      .rotate()
+      .resize(400, 400, { fit: 'cover' })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    await writeFile(file.path, resized);
+
+    const url = `/uploads/users/${file.filename}`;
+    await this.usersRepo.update(userId, { photoUrl: url });
+    return { url };
   }
 }
