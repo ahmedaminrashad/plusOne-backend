@@ -1,3 +1,5 @@
+import { extname } from 'path';
+import { randomUUID } from 'crypto';
 import {
   Controller,
   Get,
@@ -14,6 +16,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
@@ -82,6 +85,23 @@ export class GroupsController {
     @Param('memberId') memberId: string,
   ) {
     return this.groupsService.removeMember(id, user.id, memberId);
+  }
+
+  @Post(':id/avatar')
+  @UseInterceptors(FileInterceptor('image', {
+    storage: diskStorage({
+      destination: './uploads/groups',
+      filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => cb(null, /^image\/(jpeg|png|webp)$/.test(file.mimetype)),
+  }))
+  uploadGroupAvatar(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.groupsService.uploadGroupAvatar(id, user.id, file);
   }
 
   @Post(':id/chat-image')

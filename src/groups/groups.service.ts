@@ -386,6 +386,31 @@ export class GroupsService {
     return { url: `/uploads/chat/${file.filename}` };
   }
 
+  async uploadGroupAvatar(
+    groupId: string,
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<{ url: string }> {
+    if (!file) throw new BadRequestException('IMAGE_FILE_REQUIRED');
+    try {
+      await this.assertMembership(groupId, userId);
+    } catch (err) {
+      await unlink(file.path).catch(() => {});
+      throw err;
+    }
+
+    const resized = await sharp(file.path)
+      .rotate()
+      .resize(400, 400, { fit: 'cover' })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    await writeFile(file.path, resized);
+
+    const url = `/uploads/groups/${file.filename}`;
+    await this.groupsRepo.update(groupId, { avatarUrl: url });
+    return { url };
+  }
+
   private async assertMembership(groupId: string, userId: string): Promise<GroupMember> {
     const membership = await this.membersRepo.findOne({
       where: { groupId, userId, status: MemberStatus.ACTIVE },

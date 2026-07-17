@@ -11,6 +11,7 @@ async function bootstrap() {
 
   const uploadsDir = join(process.cwd(), 'uploads');
   mkdirSync(join(uploadsDir, 'chat'), { recursive: true });
+  mkdirSync(join(uploadsDir, 'groups'), { recursive: true });
   app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
 
   app.useGlobalPipes(
