@@ -6,6 +6,7 @@ import { BillsController } from './bills.controller';
 import { Bill } from './entities/bill.entity';
 import { GroupMember } from '../groups/entities/group-member.entity';
 import { QrParserService } from './qr-parser/qr-parser.service';
+import { MindeeOcrService } from './ocr/mindee-ocr.service';
 import { SharesModule } from '../shares/shares.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -17,6 +18,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [BillsController],
-  providers: [BillsService, QrParserService],
+  providers: [BillsService, QrParserService, MindeeOcrService],
 })
 export class BillsModule {}

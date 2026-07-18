@@ -7,6 +7,7 @@ import { Message } from '../groups/entities/message.entity';
 import { CreateBillDto } from './dto/create-bill.dto';
 import { UpdateBillItemsDto } from './dto/update-bill-items.dto';
 import { QrParserService, QrParseResult } from './qr-parser/qr-parser.service';
+import { MindeeOcrService, OcrParseResult } from './ocr/mindee-ocr.service';
 import { SharesService } from '../shares/shares.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -17,6 +18,7 @@ export class BillsService {
     @InjectRepository(GroupMember) private membersRepo: Repository<GroupMember>,
     private readonly dataSource: DataSource,
     private readonly qrParser: QrParserService,
+    private readonly ocrParser: MindeeOcrService,
     private readonly sharesService: SharesService,
     private readonly notifications: NotificationsService,
   ) {}
@@ -134,6 +136,16 @@ export class BillsService {
   async parseQr(groupId: string, userId: string, payload: string): Promise<QrParseResult> {
     await this.assertMember(groupId, userId);
     return this.qrParser.parse(payload);
+  }
+
+  async parseReceipt(
+    groupId: string,
+    userId: string,
+    buffer: Buffer,
+    filename: string,
+  ): Promise<OcrParseResult> {
+    await this.assertMember(groupId, userId);
+    return this.ocrParser.parseReceipt(buffer, filename);
   }
 
   private async notifyBillShared(

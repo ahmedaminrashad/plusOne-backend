@@ -76,15 +76,9 @@ export class BillsController {
   parseReceipt(
     @Param('groupId') groupId: string,
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() _user: any,
+    @CurrentUser() user: any,
   ) {
     if (!file) throw new BadRequestException('IMAGE_FILE_REQUIRED');
-    // OCR integration scaffold — requires GOOGLE_VISION_API_KEY or AWS credentials
-    // Return a structured response indicating OCR is not yet configured
-    return {
-      success: false,
-      fallback: 'manual',
-      reason: 'OCR service not configured',
-    };
+    return this.billsService.parseReceipt(groupId, user.id, file.buffer, file.originalname);
   }
 }
