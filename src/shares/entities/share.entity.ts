@@ -23,7 +23,7 @@ export enum ShareStatus {
 
 export enum ShareMethod {
   INSTAPAY = 'instapay',
-  CARD = 'card',
+  CASH = 'cash',
 }
 
 export enum ShareFailureReason {

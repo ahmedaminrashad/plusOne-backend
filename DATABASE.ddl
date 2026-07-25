@@ -120,7 +120,7 @@ CREATE TABLE `shares` (
   `amountPiastres`       INT                                                                      NOT NULL,
   `currency`             VARCHAR(10)                                                              NOT NULL DEFAULT 'EGP',
   `status`               ENUM('pending','initiated','settled','cancelled','failed')                NOT NULL DEFAULT 'pending',
-  `method`               ENUM('instapay','card')                                                  NOT NULL DEFAULT 'instapay',
+  `method`               ENUM('instapay','cash')                                                  NOT NULL DEFAULT 'instapay',
   `reference`            VARCHAR(40)                                                              NULL,
   `failureReason`        ENUM('payment_not_received','member_cancelled','wrong_amount','confirmed_by_mistake','other') NULL,
   `initiatedAt`          DATETIME(6)                                                              NULL,
@@ -179,4 +179,23 @@ CREATE TABLE `audit_log` (
   INDEX `IDX_audit_log_shareId` (`shareId`),
   CONSTRAINT `FK_audit_log_shareId`
     FOREIGN KEY (`shareId`) REFERENCES `shares` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `friends` (
+  `id`             VARCHAR(36)                NOT NULL,
+  `ownerUserId`    VARCHAR(36)                NOT NULL,
+  `friendUserId`   VARCHAR(36)                NULL,
+  `pendingPhone`   VARCHAR(255)               NULL,
+  `displayName`    VARCHAR(255)               NULL,
+  `status`         ENUM('active','pending')   NOT NULL DEFAULT 'active',
+  `createdAt`      DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `UQ_friends_ownerUserId_friendUserId` (`ownerUserId`, `friendUserId`),
+  UNIQUE KEY `UQ_friends_ownerUserId_pendingPhone`  (`ownerUserId`, `pendingPhone`),
+  INDEX `IDX_friends_ownerUserId`  (`ownerUserId`),
+  INDEX `IDX_friends_friendUserId` (`friendUserId`),
+  CONSTRAINT `FK_friends_ownerUserId`
+    FOREIGN KEY (`ownerUserId`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `FK_friends_friendUserId`
+    FOREIGN KEY (`friendUserId`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

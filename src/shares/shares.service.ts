@@ -293,6 +293,25 @@ export class SharesService {
     });
   }
 
+  /** Every non-terminal share the user is party to, either as the one owed
+   * (initiator, for Settle Up "to collect" / Remind) or the one owing
+   * (owner, for Settle Up "to pay") — across all of their groups. */
+  async getMyShares(userId: string): Promise<Share[]> {
+    const [asInitiator, asOwner] = await Promise.all([
+      this.sharesRepo.find({
+        where: { initiatorUserId: userId, status: In([ShareStatus.PENDING, ShareStatus.INITIATED, ShareStatus.FAILED]) },
+        relations: { owner: true, initiator: true, bill: true, group: true },
+        order: { createdAt: 'DESC' },
+      }),
+      this.sharesRepo.find({
+        where: { ownerUserId: userId, status: In([ShareStatus.PENDING, ShareStatus.INITIATED, ShareStatus.FAILED]) },
+        relations: { owner: true, initiator: true, bill: true, group: true },
+        order: { createdAt: 'DESC' },
+      }),
+    ]);
+    return [...asInitiator, ...asOwner];
+  }
+
   computeAggregateBillStatus(
     shares: Share[],
   ): 'fully_settled' | 'partially_settled' | 'pending' | 'voided' {
@@ -304,7 +323,7 @@ export class SharesService {
     return 'pending';
   }
 
-  async payShare(shareId: string, userId: string): Promise<Share> {
+  async payShare(shareId: string, userId: string, method: ShareMethod = ShareMethod.INSTAPAY): Promise<Share> {
     const share = await this.getShareOrThrow(shareId);
     if (share.ownerUserId !== userId) {
       throw new ForbiddenException('NOT_SHARE_OWNER');
@@ -316,11 +335,12 @@ export class SharesService {
       throw new ConflictException('SHARE_ALREADY_SETTLED');
     }
 
+    share.method = method;
     const updated = await this.dataSource.transaction((manager) =>
       this.stateService.transition(manager, share, ShareStatus.INITIATED, {
         actor: userId,
         source: AuditSource.USER,
-        reason: 'member_initiated_payment',
+        reason: method === ShareMethod.CASH ? 'member_marked_cash_paid' : 'member_initiated_payment',
       }),
     );
 

@@ -30,7 +30,10 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   });
 
-  app.setGlobalPrefix('api/v1');
+  // The public pay-link page (opened from an SMS link by someone without the
+  // app) lives at a bare "/s/:shareId" path — it must stay outside "/api/v1"
+  // so the short link matches the pay.plusone-app.com/s/... shape from the design.
+  app.setGlobalPrefix('api/v1', { exclude: ['s/:shareId'] });
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

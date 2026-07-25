@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Param, Body, UseGuards } from '@nestjs/common';
 import { SharesService } from './shares.service';
 import { FailShareDto } from './dto/fail-share.dto';
+import { PayShareDto } from './dto/pay-share.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -14,9 +15,14 @@ export class SharesController {
     return this.sharesService.getBillShares(billId);
   }
 
+  @Get('mine')
+  getMyShares(@CurrentUser() user: any) {
+    return this.sharesService.getMyShares(user.id);
+  }
+
   @Post(':id/pay')
-  payShare(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.sharesService.payShare(id, user.id);
+  payShare(@Param('id') id: string, @Body() dto: PayShareDto, @CurrentUser() user: any) {
+    return this.sharesService.payShare(id, user.id, dto.method);
   }
 
   @Post(':id/cancel-initiation')

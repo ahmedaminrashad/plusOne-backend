@@ -11,6 +11,8 @@ import { BillsModule } from './bills/bills.module';
 import { AuditModule } from './audit/audit.module';
 import { SharesModule } from './shares/shares.module';
 import { LedgerModule } from './ledger/ledger.module';
+import { FriendsModule } from './friends/friends.module';
+import { PayLinkModule } from './pay-link/pay-link.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 @Module({
@@ -30,6 +32,8 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     AuditModule,
     SharesModule,
     LedgerModule,
+    FriendsModule,
+    PayLinkModule,
   ],
 })
 export class AppModule implements NestModule {
