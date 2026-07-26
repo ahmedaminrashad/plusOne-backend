@@ -90,7 +90,7 @@ export class GroupsService {
   async getUserGroups(userId: string): Promise<Group[]> {
     const memberships = await this.membersRepo.find({
       where: { userId, status: MemberStatus.ACTIVE },
-      relations: { group: { members: true } },
+      relations: { group: { members: { user: true } } },
       order: { createdAt: 'DESC' },
     });
     return memberships.map((m) => m.group);
