@@ -8,8 +8,8 @@ export interface ParsedReceiptData {
   lineItems: BillLineItem[];
   tax?: number;
   taxType?: 'percent' | 'amount';
-  service?: number;
-  serviceType?: 'percent' | 'amount';
+  delivery?: number;
+  deliveryType?: 'percent' | 'amount';
   captureMethod: 'ocr';
   sourceRef: string;
 }

@@ -7,8 +7,8 @@ export interface ParsedBillData {
   subtotal?: number;
   tax?: number;
   taxType?: 'percent' | 'amount';
-  service?: number;
-  serviceType?: 'percent' | 'amount';
+  delivery?: number;
+  deliveryType?: 'percent' | 'amount';
   captureMethod: 'qr';
   sourceRef: string;
 }
@@ -207,8 +207,8 @@ function parseFoodicsJson(data: any, sourceRef: string): ParsedBillData | null {
     subtotal: data.subtotal != null ? Number(data.subtotal) : undefined,
     tax: data.tax != null ? Number(data.tax) : undefined,
     taxType: 'amount',
-    service: data.service_charge != null ? Number(data.service_charge) : undefined,
-    serviceType: 'amount',
+    delivery: data.service_charge != null ? Number(data.service_charge) : undefined,
+    deliveryType: 'amount',
     captureMethod: 'qr',
     sourceRef,
   };

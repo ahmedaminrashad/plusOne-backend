@@ -96,21 +96,21 @@ export class CreateBillDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  service?: number;
+  delivery?: number;
 
   @IsOptional()
   @IsEnum(['percent', 'amount'])
-  serviceType?: 'percent' | 'amount';
+  deliveryType?: 'percent' | 'amount';
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  tip?: number;
+  vat?: number;
 
   @IsOptional()
   @IsEnum(['percent', 'amount'])
-  tipType?: 'percent' | 'amount';
+  vatType?: 'percent' | 'amount';
 
   @IsOptional()
   @IsArray()

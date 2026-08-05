@@ -77,16 +77,16 @@ export class Bill {
   taxType: 'percent' | 'amount' | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, transformer: decimalTransformer })
-  service: number | null;
+  delivery: number | null;
 
   @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })
-  serviceType: 'percent' | 'amount' | null;
+  deliveryType: 'percent' | 'amount' | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, transformer: decimalTransformer })
-  tip: number | null;
+  vat: number | null;
 
   @Column({ type: 'enum', enum: ['percent', 'amount'], nullable: true })
-  tipType: 'percent' | 'amount' | null;
+  vatType: 'percent' | 'amount' | null;
 
   @Column({ type: 'datetime', precision: 6, nullable: true, default: null })
   closedAt: Date | null;

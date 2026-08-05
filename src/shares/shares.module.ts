@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Share } from './entities/share.entity';
 import { GroupMember } from '../groups/entities/group-member.entity';
+import { Message } from '../groups/entities/message.entity';
 import { SharesService } from './shares.service';
 import { SharesStateService } from './shares-state.service';
 import { SharesController } from './shares.controller';
@@ -11,7 +12,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Share, GroupMember]),
+    TypeOrmModule.forFeature([Share, GroupMember, Message]),
     AuditModule,
     NotificationsModule,
   ],

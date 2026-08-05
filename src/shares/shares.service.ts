@@ -13,6 +13,7 @@ import { Bill } from '../bills/entities/bill.entity';
 import { GroupMember, MemberStatus } from '../groups/entities/group-member.entity';
 import { Group } from '../groups/entities/group.entity';
 import { User } from '../users/entities/user.entity';
+import { Message } from '../groups/entities/message.entity';
 import { CreateShareDto } from './dto/create-share.dto';
 import { FailShareDto } from './dto/fail-share.dto';
 import { SharesStateService } from './shares-state.service';
@@ -30,6 +31,7 @@ export class SharesService {
   constructor(
     @InjectRepository(Share) private sharesRepo: Repository<Share>,
     @InjectRepository(GroupMember) private membersRepo: Repository<GroupMember>,
+    @InjectRepository(Message) private messagesRepo: Repository<Message>,
     private readonly dataSource: DataSource,
     private readonly stateService: SharesStateService,
     private readonly auditLog: AuditLogService,
@@ -403,6 +405,27 @@ export class SharesService {
       where: { id: updated.id },
       relations: { owner: true, initiator: true, bill: true },
     });
+
+    if (withRelations) {
+      const payerName =
+        withRelations.owner?.displayName ?? withRelations.ownerPendingPhone ?? 'Someone';
+      const payeeName = withRelations.initiator?.displayName ?? 'Someone';
+      const amount = (withRelations.amountPiastres / 100).toFixed(2);
+      const currency = withRelations.currency || 'EGP';
+      const text = `${payerName} has paid ${amount} ${currency} to ${payeeName}`;
+
+      try {
+        await this.messagesRepo.save({
+          groupId: withRelations.groupId,
+          senderId: userId,
+          text,
+          billId: withRelations.billId,
+        });
+      } catch (err) {
+        this.logger.warn(`Failed to post payment confirmation chat message: ${err}`);
+      }
+    }
+
     if (withRelations?.owner?.fcmToken) {
       const lang = withRelations.owner.language;
       await this.notifications.send(

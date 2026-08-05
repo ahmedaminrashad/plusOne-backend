@@ -1,5 +1,5 @@
 -- PlusOne Database Schema (MySQL)
--- Last updated: 2026-07-16 (messages.billId — receipts shared into group chat)
+-- Last updated: 2026-08-05 (bills.service/tip renamed to delivery/vat)
 -- Source of truth: sync this file on every entity change.
 
 CREATE TABLE `users` (
@@ -93,10 +93,10 @@ CREATE TABLE `bills` (
   `lineItems`       JSON                               NULL, -- [{name, qty, unitPrice, claimedBy: groupMemberId[]}]. Editable via PATCH /bills/:id/items while closedAt IS NULL.
   `tax`             DECIMAL(10,2)                      NULL,
   `taxType`         ENUM('percent','amount')           NULL,
-  `service`         DECIMAL(10,2)                      NULL,
-  `serviceType`     ENUM('percent','amount')           NULL,
-  `tip`             DECIMAL(10,2)                      NULL,
-  `tipType`         ENUM('percent','amount')           NULL,
+  `delivery`        DECIMAL(10,2)                      NULL,
+  `deliveryType`    ENUM('percent','amount')           NULL,
+  `vat`             DECIMAL(10,2)                      NULL,
+  `vatType`         ENUM('percent','amount')           NULL,
   `closedAt`        DATETIME(6)                        NULL DEFAULT NULL,
   `createdAt`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updatedAt`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),

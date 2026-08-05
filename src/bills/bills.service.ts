@@ -11,6 +11,15 @@ import { MindeeOcrService, OcrParseResult } from './ocr/mindee-ocr.service';
 import { SharesService } from '../shares/shares.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
+function resolveExtraAmount(
+  value: number | null | undefined,
+  type: 'percent' | 'amount' | null | undefined,
+  base: number,
+): number {
+  if (value == null) return 0;
+  return type === 'percent' ? (base * value) / 100 : value;
+}
+
 @Injectable()
 export class BillsService {
   constructor(
@@ -102,6 +111,30 @@ export class BillsService {
         unitPrice: li.unitPrice,
         claimedBy: li.claimedBy ?? [],
       }));
+
+      const extrasSent =
+        dto.tax !== undefined ||
+        dto.taxType !== undefined ||
+        dto.delivery !== undefined ||
+        dto.deliveryType !== undefined ||
+        dto.vat !== undefined ||
+        dto.vatType !== undefined;
+
+      if (dto.tax !== undefined) fresh.tax = dto.tax;
+      if (dto.taxType !== undefined) fresh.taxType = dto.taxType;
+      if (dto.delivery !== undefined) fresh.delivery = dto.delivery;
+      if (dto.deliveryType !== undefined) fresh.deliveryType = dto.deliveryType;
+      if (dto.vat !== undefined) fresh.vat = dto.vat;
+      if (dto.vatType !== undefined) fresh.vatType = dto.vatType;
+
+      if (extrasSent) {
+        const subtotal = fresh.lineItems.reduce((sum, li) => sum + li.qty * li.unitPrice, 0);
+        const taxAmt = resolveExtraAmount(fresh.tax, fresh.taxType, subtotal);
+        const deliveryAmt = resolveExtraAmount(fresh.delivery, fresh.deliveryType, subtotal);
+        const vatAmt = resolveExtraAmount(fresh.vat, fresh.vatType, subtotal + taxAmt + deliveryAmt);
+        fresh.amount = Math.round((subtotal + taxAmt + deliveryAmt + vatAmt) * 100) / 100;
+      }
+
       await manager.save(fresh);
 
       await this.sharesService.reconcileSharesForBill(manager, fresh, dto.shares, userId);
