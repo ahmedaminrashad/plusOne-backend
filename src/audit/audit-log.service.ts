@@ -12,7 +12,6 @@ export interface RecordAuditEntryInput {
   metadata?: Record<string, unknown> | null;
 }
 
-
 @Injectable()
 export class AuditLogService {
   async record(manager: EntityManager, input: RecordAuditEntryInput): Promise<AuditLog> {
