@@ -133,28 +133,71 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
   const r = data?.receipt;
   if (!r) return null;
 
-  const lineItems: BillLineItem[] = (r.itemData ?? []).map((item: any) => ({
-    name: item.description ?? item.itemCodeName ?? 'صنف',
-    qty: Number(item.quantity ?? 1),
-    unitPrice: Number(item.unitPrice ?? 0),
-  }));
+  const lineItems: BillLineItem[] = (r.itemData ?? []).map((item: any) => {
+    const qty = Number(item.quantity ?? 1) || 1;
+    const lineTotal = Number(item.total ?? item.netTotal ?? NaN);
+    const unitFromTotal = Number.isFinite(lineTotal) ? lineTotal / qty : NaN;
+    const unitPrice = Number.isFinite(unitFromTotal)
+      ? unitFromTotal
+      : Number(item.unitPrice ?? 0);
+    return {
+      name: item.description ?? item.itemCodeName ?? 'صنف',
+      qty,
+      unitPrice,
+    };
+  });
 
   if (lineItems.length === 0) return null;
 
-  const taxAmount = (r.taxTotals ?? []).reduce(
-    (sum: number, t: any) => sum + Number(t.amount ?? 0),
-    0,
-  );
+  const itemsSubtotal = lineItems.reduce((sum, it) => sum + it.unitPrice * it.qty, 0);
 
-  return {
+  let receiptDiscount = 0;
+  for (const d of r.extraReceiptDiscountData ?? r.discountData ?? []) {
+    receiptDiscount += Number(d.amount ?? d.discountAmount ?? 0);
+  }
+  receiptDiscount = Math.abs(receiptDiscount);
+
+  let vatAmount = 0;
+  let otherTaxAmount = 0;
+  for (const t of r.taxTotals ?? []) {
+    const amount = Number(t.amount ?? 0);
+    if (!amount) continue;
+    const code = String(t.taxType ?? t.type ?? t.taxTypeCode ?? '').toUpperCase();
+    if (code.includes('T1') || code.includes('VAT') || code.includes('ضريبة القيمة')) {
+      vatAmount += amount;
+    } else {
+      otherTaxAmount += amount;
+    }
+  }
+
+  const totalAmount = r.totalAmount != null ? Number(r.totalAmount) : undefined;
+  const netAmount = r.netAmount != null ? Number(r.netAmount) : undefined;
+  const targetTotal =
+    totalAmount ??
+    (netAmount != null ? netAmount + vatAmount + otherTaxAmount - receiptDiscount : undefined);
+  const extrasAlreadyIncluded =
+    targetTotal != null && Math.abs(itemsSubtotal - targetTotal) <= 0.05;
+
+  const result: ParsedBillData = {
     venueName: r.seller?.sellerName ?? undefined,
     lineItems,
-    subtotal: r.netAmount != null ? Number(r.netAmount) : undefined,
-    tax: taxAmount > 0 ? taxAmount : undefined,
-    taxType: taxAmount > 0 ? 'amount' : undefined,
+    subtotal: extrasAlreadyIncluded ? itemsSubtotal : (netAmount ?? itemsSubtotal - receiptDiscount),
     captureMethod: 'qr',
     sourceRef,
   };
+
+  if (!extrasAlreadyIncluded) {
+    if (otherTaxAmount > 0) {
+      result.tax = otherTaxAmount;
+      result.taxType = 'amount';
+    }
+    if (vatAmount > 0 && targetTotal != null && targetTotal > itemsSubtotal + 0.05) {
+      result.tax = (result.tax ?? 0) + vatAmount;
+      result.taxType = 'amount';
+    }
+  }
+
+  return result;
 }
 
 // ──────────────────────────────────────────────────────────────

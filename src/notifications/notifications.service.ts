@@ -46,6 +46,15 @@ export class NotificationsService implements OnModuleInit {
         notification,
         data,
         android: { priority: 'high' },
+        apns: {
+          payload: {
+            aps: {
+              alert: notification,
+              sound: 'default',
+              badge: 1,
+            },
+          },
+        },
       });
     } catch (err: any) {
       this.logger.warn(`[FCM] Failed to send notification: ${err?.message}`);

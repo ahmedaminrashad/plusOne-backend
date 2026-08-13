@@ -330,7 +330,9 @@ export class SharesService {
     if (share.ownerUserId !== userId) {
       throw new ForbiddenException('NOT_SHARE_OWNER');
     }
+    // Idempotent re-tap: already marked paid / waiting for confirmation with the same method.
     if (share.status === ShareStatus.INITIATED) {
+      if (share.method === method) return share;
       throw new ConflictException('SHARE_ALREADY_INITIATED');
     }
     if (share.status === ShareStatus.SETTLED) {
@@ -414,12 +416,12 @@ export class SharesService {
       const currency = withRelations.currency || 'EGP';
       const text = `${payerName} has paid ${amount} ${currency} to ${payeeName}`;
 
+      // Text-only — do not set billId or chat will render a duplicate receipt card.
       try {
         await this.messagesRepo.save({
           groupId: withRelations.groupId,
           senderId: userId,
           text,
-          billId: withRelations.billId,
         });
       } catch (err) {
         this.logger.warn(`Failed to post payment confirmation chat message: ${err}`);

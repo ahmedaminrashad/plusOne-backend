@@ -25,6 +25,10 @@ interface LedgerBillSummary {
 
 export interface GroupLedgerResponse {
   groupMonthlyTotal: number;
+  /** Sum of this month's bill amounts where the current user is the payer (fronted). */
+  youPaidPiastres: number;
+  /** Sum of this month's share amounts owed by the current user (their fair share of splits). */
+  yourSharePiastres: number;
   currentUserNetBalance: number;
   perCounterpartBreakdown: CounterpartBreakdown[];
   bills: LedgerBillSummary[];
@@ -64,6 +68,8 @@ export class LedgerService {
     const { year: currentYear, month: currentMonth } = this.getCairoYearMonth(new Date());
 
     let groupMonthlyTotal = 0;
+    let youPaidPiastres = 0;
+    let yourSharePiastres = 0;
     const billSummaries: LedgerBillSummary[] = bills.map((bill) => {
       const billShares = sharesByBill.get(bill.id) ?? [];
       const aggregateStatus = this.sharesService.computeAggregateBillStatus(billShares);
@@ -73,6 +79,18 @@ export class LedgerService {
         const { year, month } = this.getCairoYearMonth(bill.createdAt);
         if (year === currentYear && month === currentMonth) {
           groupMonthlyTotal += amountPiastres;
+          if (bill.paidByUserId === userId) {
+            youPaidPiastres += amountPiastres;
+            const othersOwe = billShares
+              .filter((s) => s.status !== ShareStatus.CANCELLED)
+              .reduce((sum, s) => sum + s.amountPiastres, 0);
+            yourSharePiastres += Math.max(0, amountPiastres - othersOwe);
+          }
+          for (const share of billShares) {
+            if (share.ownerUserId === userId && share.status !== ShareStatus.CANCELLED) {
+              yourSharePiastres += share.amountPiastres;
+            }
+          }
         }
       }
 
@@ -131,6 +149,8 @@ export class LedgerService {
 
     return {
       groupMonthlyTotal,
+      youPaidPiastres,
+      yourSharePiastres,
       currentUserNetBalance,
       perCounterpartBreakdown,
       bills: billSummaries,
