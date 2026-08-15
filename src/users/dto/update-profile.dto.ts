@@ -1,4 +1,5 @@
-import { IsString, IsOptional, Length, Matches } from 'class-validator';
+import { IsString, IsOptional, Length, Matches, ValidateIf } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -10,6 +11,8 @@ export class UpdateProfileDto {
   displayName?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null ? null : value))
+  @ValidateIf((_, v) => v !== null && v !== undefined)
   @IsString()
-  instaPayAlias?: string;
+  instaPayAlias?: string | null;
 }

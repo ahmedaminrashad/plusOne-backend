@@ -40,7 +40,10 @@ export class UsersService {
     const user = await this.findById(id);
 
     if (dto.displayName !== undefined) user.displayName = dto.displayName;
-    if (dto.instaPayAlias !== undefined) user.instaPayAlias = dto.instaPayAlias;
+    if (dto.instaPayAlias !== undefined) {
+      const trimmed = dto.instaPayAlias?.trim() ?? '';
+      user.instaPayAlias = trimmed ? trimmed : (null as unknown as string);
+    }
 
     const hasRequiredFields = !!user.displayName;
     user.isProfileComplete = hasRequiredFields;

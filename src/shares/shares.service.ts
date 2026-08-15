@@ -547,7 +547,7 @@ export class SharesService {
           billTitle: share.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
           groupName: share.bill?.group?.name ?? (lang === 'en' ? 'the group' : 'المجموعة'),
         }),
-        { type: 'share_reminder', shareId: share.id },
+        { type: 'share_reminder', shareId: share.id, groupId: share.groupId, billId: share.billId, groupName: share.bill?.group?.name ?? '' },
       );
     } else {
       deliveryFailed = true;
