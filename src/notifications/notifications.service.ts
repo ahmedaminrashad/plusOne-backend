@@ -40,11 +40,23 @@ export class NotificationsService implements OnModuleInit {
   ): Promise<void> {
     if (!this.initialized || !fcmToken) return;
 
+    // FCM data values must be strings; keep routing keys + title/body in data so
+    // Android still delivers them when the user taps a tray notification.
+    const payload: Record<string, string> = {};
+    if (data) {
+      for (const [key, value] of Object.entries(data)) {
+        if (value == null) continue;
+        payload[key] = String(value);
+      }
+    }
+    payload.title = notification.title;
+    payload.body = notification.body;
+
     try {
       await admin.messaging().send({
         token: fcmToken,
         notification,
-        data,
+        data: payload,
         android: { priority: 'high' },
         apns: {
           payload: {
@@ -52,6 +64,7 @@ export class NotificationsService implements OnModuleInit {
               alert: notification,
               sound: 'default',
               badge: 1,
+              contentAvailable: true,
             },
           },
         },
