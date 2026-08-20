@@ -38,12 +38,12 @@ export const notificationTexts = {
     const amount = formatAmount(params.amountPiastres, params.currency, language);
     return language === 'en'
       ? {
-          title: 'New Bill 🧾',
-          body: `${params.initiatorName} added a new bill in ${params.groupName} — your share is ${amount}`,
+          title: 'New Receipt 🧾',
+          body: `${params.initiatorName} added a new receipt in ${params.groupName} — your share is ${amount}`,
         }
       : {
-          title: 'فاتورة جديدة 🧾',
-          body: `${params.initiatorName} أضاف فاتورة جديدة في ${params.groupName} — نصيبك ${amount}`,
+          title: 'إيصال جديد 🧾',
+          body: `${params.initiatorName} أضاف إيصالاً جديداً في ${params.groupName} — نصيبك ${amount}`,
         };
   },
 
@@ -65,8 +65,8 @@ export const notificationTexts = {
     params: { editorName: string; billTitle: string },
   ): NotificationText {
     return language === 'en'
-      ? { title: 'Removed from a bill', body: `${params.editorName} removed you from ${params.billTitle} — you no longer owe anything on it` }
-      : { title: 'تمت إزالتك من فاتورة', body: `${params.editorName} أزالك من ${params.billTitle} — لا يوجد عليك أي مبلغ فيها بعد الآن` };
+      ? { title: 'Removed from a receipt', body: `${params.editorName} removed you from ${params.billTitle} — you no longer owe anything on it` }
+      : { title: 'تمت إزالتك من إيصال', body: `${params.editorName} أزالك من ${params.billTitle} — لا يوجد عليك أي مبلغ فيه بعد الآن` };
   },
 
   shareInitiated(

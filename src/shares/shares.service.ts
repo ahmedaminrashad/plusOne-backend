@@ -259,7 +259,7 @@ export class SharesService {
           editorName: editor?.displayName ?? (owner.language === 'en' ? 'A friend' : 'صديقك'),
           amountPiastres: share.amountPiastres,
           currency: share.currency,
-          billTitle: bill.title ?? (owner.language === 'en' ? 'the bill' : 'الفاتورة'),
+          billTitle: bill.title ?? (owner.language === 'en' ? 'the receipt' : 'الإيصال'),
         }),
         { type: 'share_updated', groupId: bill.groupId, billId: bill.id, shareId: share.id },
       );
@@ -272,7 +272,7 @@ export class SharesService {
         owner.fcmToken,
         notificationTexts.shareRemoved(owner.language, {
           editorName: editor?.displayName ?? (owner.language === 'en' ? 'A friend' : 'صديقك'),
-          billTitle: bill.title ?? (owner.language === 'en' ? 'the bill' : 'الفاتورة'),
+          billTitle: bill.title ?? (owner.language === 'en' ? 'the receipt' : 'الإيصال'),
         }),
         { type: 'share_removed', groupId: bill.groupId, billId: bill.id, shareId: share.id },
       );
@@ -388,7 +388,7 @@ export class SharesService {
           ownerName: withRelations.owner?.displayName ?? (lang === 'en' ? 'A member' : 'عضو'),
           amountPiastres: withRelations.amountPiastres,
           currency: withRelations.currency,
-          billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
+          billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
         { type: 'share_initiated', shareId: updated.id },
       );
@@ -464,7 +464,7 @@ export class SharesService {
           initiatorName: withRelations.initiator?.displayName ?? (lang === 'en' ? 'The creator' : 'المُنشئ'),
           amountPiastres: withRelations.amountPiastres,
           currency: withRelations.currency,
-          billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
+          billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
         {
           type: 'share_settled',
@@ -578,7 +578,7 @@ export class SharesService {
           initiatorName: share.initiator?.displayName ?? (lang === 'en' ? 'A friend' : 'صديقك'),
           amountPiastres: share.amountPiastres,
           currency: share.currency,
-          billTitle: share.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
+          billTitle: share.bill?.title ?? (lang === 'en' ? 'the receipt' : 'الإيصال'),
           groupName: share.bill?.group?.name ?? (lang === 'en' ? 'the group' : 'المجموعة'),
         }),
         { type: 'share_reminder', shareId: share.id, groupId: share.groupId, billId: share.billId, groupName: share.bill?.group?.name ?? '' },
@@ -618,7 +618,7 @@ export class SharesService {
         notificationTexts.shareStaleNudge(lang, {
           amountPiastres: share.amountPiastres,
           currency: share.currency,
-          billTitle: share.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
+          billTitle: share.bill?.title ?? (lang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
         { type: 'share_stale_nudge', shareId: share.id },
       );

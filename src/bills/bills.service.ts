@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Bill, BillLineItem } from './entities/bill.entity';
 import { GroupMember } from '../groups/entities/group-member.entity';
+import { Group } from '../groups/entities/group.entity';
 import { Message } from '../groups/entities/message.entity';
 import { CreateBillDto } from './dto/create-bill.dto';
 import { UpdateBillItemsDto } from './dto/update-bill-items.dto';
@@ -49,7 +50,7 @@ export class BillsService {
   async createBill(groupId: string, userId: string, dto: CreateBillDto): Promise<Bill> {
     const membership = await this.assertMember(groupId, userId);
     const { shares, ...billFields } = dto;
-    const title = dto.title || dto.venueName || 'فاتورة';
+    const title = dto.title || dto.venueName || 'إيصال';
 
     const savedId = await this.dataSource.transaction(async (manager) => {
       const bill = manager.create(Bill, {
@@ -209,10 +210,13 @@ export class BillsService {
     senderName: string | null,
     bill: Bill,
   ): Promise<void> {
-    const members = await this.membersRepo.find({
-      where: { groupId, status: 'active' as any },
-      relations: { user: true },
-    });
+    const [members, group] = await Promise.all([
+      this.membersRepo.find({
+        where: { groupId, status: 'active' as any },
+        relations: { user: true },
+      }),
+      this.dataSource.getRepository(Group).findOne({ where: { id: groupId } }),
+    ]);
     const recipients = members.filter((m) => m.userId && m.userId !== senderId && m.user?.fcmToken);
 
     await Promise.allSettled(
@@ -220,7 +224,7 @@ export class BillsService {
         this.notifications.send(
           m.user!.fcmToken!,
           { title: senderName ?? 'User', body: `🧾 ${bill.title ?? 'Receipt'} — ${bill.amount} ${bill.currency}` },
-          { type: 'chat_message', groupId },
+          { type: 'chat_message', groupId, groupName: group?.name ?? '' },
         ),
       ),
     );
