@@ -17,7 +17,12 @@ function resolveExtraAmount(
   base: number,
 ): number {
   if (value == null) return 0;
-  return type === 'percent' ? (base * value) / 100 : value;
+  const raw = type === 'percent' ? (base * value) / 100 : value;
+  return Math.round((Number(raw) + Number.EPSILON) * 100) / 100;
+}
+
+function roundMoney(n: number): number {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
 @Injectable()
@@ -50,6 +55,11 @@ export class BillsService {
       const bill = manager.create(Bill, {
         groupId,
         ...billFields,
+        amount: roundMoney(Number(billFields.amount)),
+        lineItems: (billFields.lineItems ?? []).map((li) => ({
+          ...li,
+          unitPrice: roundMoney(Number(li.unitPrice)),
+        })),
         title,
         captureMethod: dto.captureMethod ?? 'manual',
       });
@@ -115,7 +125,7 @@ export class BillsService {
       fresh.lineItems = dto.lineItems.map((li): BillLineItem => ({
         name: li.name,
         qty: li.qty,
-        unitPrice: li.unitPrice,
+        unitPrice: roundMoney(li.unitPrice),
         claimedBy: li.claimedBy ?? [],
       }));
 
@@ -127,19 +137,19 @@ export class BillsService {
         dto.vat !== undefined ||
         dto.vatType !== undefined;
 
-      if (dto.tax !== undefined) fresh.tax = dto.tax;
+      if (dto.tax !== undefined) fresh.tax = dto.tax == null ? null : roundMoney(dto.tax);
       if (dto.taxType !== undefined) fresh.taxType = dto.taxType;
-      if (dto.delivery !== undefined) fresh.delivery = dto.delivery;
+      if (dto.delivery !== undefined) fresh.delivery = dto.delivery == null ? null : roundMoney(dto.delivery);
       if (dto.deliveryType !== undefined) fresh.deliveryType = dto.deliveryType;
-      if (dto.vat !== undefined) fresh.vat = dto.vat;
+      if (dto.vat !== undefined) fresh.vat = dto.vat == null ? null : roundMoney(dto.vat);
       if (dto.vatType !== undefined) fresh.vatType = dto.vatType;
 
       if (extrasSent) {
-        const subtotal = fresh.lineItems.reduce((sum, li) => sum + li.qty * li.unitPrice, 0);
+        const subtotal = roundMoney(fresh.lineItems.reduce((sum, li) => sum + li.qty * li.unitPrice, 0));
         const taxAmt = resolveExtraAmount(fresh.tax, fresh.taxType, subtotal);
         const deliveryAmt = resolveExtraAmount(fresh.delivery, fresh.deliveryType, subtotal);
         const vatAmt = resolveExtraAmount(fresh.vat, fresh.vatType, subtotal + taxAmt + deliveryAmt);
-        fresh.amount = Math.round((subtotal + taxAmt + deliveryAmt + vatAmt) * 100) / 100;
+        fresh.amount = roundMoney(subtotal + taxAmt + deliveryAmt + vatAmt);
       }
 
       // Re-open for chat / detail if this bill was locked too early by an older build.

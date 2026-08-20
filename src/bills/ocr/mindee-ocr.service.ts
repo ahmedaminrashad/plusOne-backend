@@ -93,7 +93,7 @@ export class MindeeOcrService {
       items.push({
         name,
         qty: qty && qty > 0 ? qty : 1,
-        unitPrice: unitPrice ?? 0,
+        unitPrice: Math.round(((unitPrice ?? 0) + Number.EPSILON) * 100) / 100,
       });
     }
     return items;

@@ -129,11 +129,13 @@ function normalizeEtaDate(raw: string): string {
     .replace(/T(\d{2}:\d{2}:\d{2})Z$/, 'T$1.000Z');
 }
 
+function round2(n: number): number {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
 function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
   const r = data?.receipt;
   if (!r) return null;
-
-  const round2 = (n: number) => Math.round(n * 100) / 100;
 
   const lineItems: BillLineItem[] = (r.itemData ?? []).map((item: any) => {
     const qty = Number(item.quantity ?? 1) || 1;
@@ -245,7 +247,7 @@ function parseFoodicsJson(data: any, sourceRef: string): ParsedBillData | null {
   const lineItems: BillLineItem[] = (data.items ?? data.order_items ?? []).map((it: any) => ({
     name: it.name ?? it.item_name ?? 'صنف',
     qty: Number(it.quantity ?? it.qty ?? 1),
-    unitPrice: Number(it.price ?? it.unit_price ?? 0),
+    unitPrice: round2(Number(it.price ?? it.unit_price ?? 0)),
   }));
 
   return {
@@ -343,7 +345,7 @@ class SchemaOrgStrategy implements QrStrategy {
     const lineItems: BillLineItem[] = (node.referencesOrder?.orderedItem ?? []).map((it: any) => ({
       name: it.orderedItem?.name ?? it.name ?? 'صنف',
       qty: Number(it.orderQuantity ?? 1),
-      unitPrice: Number(it.orderedItem?.offers?.price ?? it.price ?? 0),
+      unitPrice: round2(Number(it.orderedItem?.offers?.price ?? it.price ?? 0)),
     }));
 
     const totalPrice = node.totalPaymentDue?.price ?? node.referencesOrder?.totalPrice;
