@@ -188,18 +188,18 @@ export class BillsService {
     await this.billsRepo.delete(billId);
   }
 
-  async parseQr(groupId: string, userId: string, payload: string): Promise<QrParseResult> {
-    await this.assertMember(groupId, userId);
+  async parseQr(groupId: string | null | undefined, userId: string, payload: string): Promise<QrParseResult> {
+    if (groupId) await this.assertMember(groupId, userId);
     return this.qrParser.parse(payload);
   }
 
   async parseReceipt(
-    groupId: string,
+    groupId: string | null | undefined,
     userId: string,
     buffer: Buffer,
     filename: string,
   ): Promise<OcrParseResult> {
-    await this.assertMember(groupId, userId);
+    if (groupId) await this.assertMember(groupId, userId);
     return this.ocrParser.parseReceipt(buffer, filename);
   }
 

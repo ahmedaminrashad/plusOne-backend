@@ -62,6 +62,21 @@ export class BillsController {
     return this.billsService.closeBill(id, user.id);
   }
 
+  @Post('parse-qr')
+  parseQrStandalone(@Body() dto: ParseQrDto, @CurrentUser() user: any) {
+    return this.billsService.parseQr(null, user.id, dto.payload);
+  }
+
+  @Post('parse-receipt')
+  @UseInterceptors(FileInterceptor('image'))
+  parseReceiptStandalone(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: any,
+  ) {
+    if (!file) throw new BadRequestException('IMAGE_FILE_REQUIRED');
+    return this.billsService.parseReceipt(null, user.id, file.buffer, file.originalname);
+  }
+
   @Post('group/:groupId/parse-qr')
   parseQr(
     @Param('groupId') groupId: string,
