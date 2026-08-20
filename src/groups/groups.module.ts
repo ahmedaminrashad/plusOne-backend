@@ -10,11 +10,12 @@ import { Group } from './entities/group.entity';
 import { GroupMember } from './entities/group-member.entity';
 import { Message } from './entities/message.entity';
 import { User } from '../users/entities/user.entity';
+import { Share } from '../shares/entities/share.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, GroupMember, Message, User]),
+    TypeOrmModule.forFeature([Group, GroupMember, Message, User, Share]),
     NotificationsModule,
     MulterModule.register({
       storage: diskStorage({

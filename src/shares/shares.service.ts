@@ -405,7 +405,7 @@ export class SharesService {
 
     const withRelations = await this.sharesRepo.findOne({
       where: { id: updated.id },
-      relations: { owner: true, initiator: true, bill: true },
+      relations: { owner: true, initiator: true, bill: { group: true }, group: true },
     });
 
     if (withRelations) {
@@ -438,7 +438,13 @@ export class SharesService {
           currency: withRelations.currency,
           billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the bill' : 'الفاتورة'),
         }),
-        { type: 'share_settled', shareId: updated.id },
+        {
+          type: 'share_settled',
+          shareId: updated.id,
+          groupId: withRelations.groupId,
+          billId: withRelations.billId,
+          groupName: withRelations.group?.name ?? withRelations.bill?.group?.name ?? '',
+        },
       );
     }
     return updated;

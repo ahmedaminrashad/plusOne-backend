@@ -10,12 +10,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In, IsNull } from 'typeorm';
 import { Group } from './entities/group.entity';
 import { GroupMember, MemberRole, MemberStatus } from './entities/group-member.entity';
 import { Message } from './entities/message.entity';
 import { User } from '../users/entities/user.entity';
+import { Share, ShareStatus } from '../shares/entities/share.entity';
 import { CreateGroupDto } from './dto/create-group.dto';
+import { UpdateGroupDto } from './dto/update-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -58,6 +60,8 @@ export class GroupsService {
     private readonly messagesRepo: Repository<Message>,
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    @InjectRepository(Share)
+    private readonly sharesRepo: Repository<Share>,
     private readonly dataSource: DataSource,
     private readonly notifications: NotificationsService,
   ) {}
@@ -91,19 +95,72 @@ export class GroupsService {
     const memberships = await this.membersRepo.find({
       where: { userId, status: MemberStatus.ACTIVE },
       relations: { group: { members: { user: true } } },
-      order: { createdAt: 'DESC' },
     });
-    return memberships.map((m) => m.group);
+
+    const groups = memberships
+      .map((m) => m.group)
+      .filter((g): g is Group => !!g && !g.deletedAt);
+
+    if (groups.length === 0) return [];
+
+    const ids = groups.map((g) => g.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const activityRows: Array<{ id: string; activityAt: Date | string }> = await this.dataSource.query(
+      `
+      SELECT g.id AS id,
+        GREATEST(
+          g.updatedAt,
+          COALESCE((SELECT MAX(m.createdAt) FROM messages m WHERE m.groupId = g.id), g.createdAt),
+          COALESCE((SELECT MAX(b.updatedAt) FROM bills b WHERE b.groupId = g.id), g.createdAt)
+        ) AS activityAt
+      FROM \`groups\` g
+      WHERE g.id IN (${placeholders})
+        AND g.deletedAt IS NULL
+      ORDER BY activityAt DESC
+      `,
+      ids,
+    );
+
+    const order = new Map(activityRows.map((row, index) => [row.id, index]));
+    return groups.sort((a, b) => (order.get(a.id) ?? 9999) - (order.get(b.id) ?? 9999));
   }
 
   async getGroup(groupId: string, userId: string): Promise<Group> {
     await this.assertMembership(groupId, userId);
     const group = await this.groupsRepo.findOne({
-      where: { id: groupId },
+      where: { id: groupId, deletedAt: IsNull() },
       relations: { members: { user: true } },
     });
     if (!group) throw new NotFoundException('GROUP_NOT_FOUND');
     return group;
+  }
+
+  async updateGroup(groupId: string, adminId: string, dto: UpdateGroupDto): Promise<Group> {
+    await this.assertAdmin(groupId, adminId);
+    const group = await this.groupsRepo.findOne({ where: { id: groupId, deletedAt: IsNull() } });
+    if (!group) throw new NotFoundException('GROUP_NOT_FOUND');
+    group.name = dto.name.trim();
+    await this.groupsRepo.save(group);
+    return this.getGroup(groupId, adminId);
+  }
+
+  async deleteGroup(groupId: string, adminId: string): Promise<void> {
+    await this.assertAdmin(groupId, adminId);
+    const group = await this.groupsRepo.findOne({ where: { id: groupId, deletedAt: IsNull() } });
+    if (!group) throw new NotFoundException('GROUP_NOT_FOUND');
+
+    const openShares = await this.sharesRepo.count({
+      where: {
+        groupId,
+        status: In([ShareStatus.PENDING, ShareStatus.INITIATED, ShareStatus.FAILED]),
+      },
+    });
+    if (openShares > 0) {
+      throw new ConflictException('GROUP_HAS_OPEN_SHARES');
+    }
+
+    group.deletedAt = new Date();
+    await this.groupsRepo.save(group);
   }
 
   async inviteMembers(

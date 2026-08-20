@@ -30,6 +30,9 @@ export class Group {
   @Column({ nullable: true })
   avatarUrl: string;
 
+  @Column({ type: 'datetime', precision: 6, nullable: true })
+  deletedAt: Date | null;
+
   @OneToMany(() => GroupMember, (member) => member.group, { cascade: true })
   members: GroupMember[];
 

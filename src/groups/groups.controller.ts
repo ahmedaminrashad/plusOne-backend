@@ -19,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
+import { UpdateGroupDto } from './dto/update-group.dto';
 import { InviteMembersDto } from './dto/invite-members.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -60,6 +61,21 @@ export class GroupsController {
   @Get(':id')
   getGroup(@CurrentUser() user: User, @Param('id') id: string) {
     return this.groupsService.getGroup(id, user.id);
+  }
+
+  @Patch(':id')
+  updateGroup(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: UpdateGroupDto,
+  ) {
+    return this.groupsService.updateGroup(id, user.id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteGroup(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.groupsService.deleteGroup(id, user.id);
   }
 
   @Get(':id/members')

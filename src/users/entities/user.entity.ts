@@ -39,7 +39,7 @@ export class User {
   @Column({ nullable: true })
   fcmToken: string;
 
-  @Column({ type: 'enum', enum: ['ar', 'en'], default: 'ar' })
+  @Column({ type: 'enum', enum: ['ar', 'en'], default: 'en' })
   language: 'ar' | 'en';
 
   @CreateDateColumn()

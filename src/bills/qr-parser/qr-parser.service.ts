@@ -133,13 +133,15 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
   const r = data?.receipt;
   if (!r) return null;
 
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
   const lineItems: BillLineItem[] = (r.itemData ?? []).map((item: any) => {
     const qty = Number(item.quantity ?? 1) || 1;
     const lineTotal = Number(item.total ?? item.netTotal ?? NaN);
     const unitFromTotal = Number.isFinite(lineTotal) ? lineTotal / qty : NaN;
     const unitPrice = Number.isFinite(unitFromTotal)
-      ? unitFromTotal
-      : Number(item.unitPrice ?? 0);
+      ? round2(unitFromTotal)
+      : round2(Number(item.unitPrice ?? 0));
     return {
       name: item.description ?? item.itemCodeName ?? 'صنف',
       qty,
@@ -149,7 +151,7 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
 
   if (lineItems.length === 0) return null;
 
-  const itemsSubtotal = lineItems.reduce((sum, it) => sum + it.unitPrice * it.qty, 0);
+  const itemsSubtotal = round2(lineItems.reduce((sum, it) => sum + it.unitPrice * it.qty, 0));
 
   let receiptDiscount = 0;
   for (const d of r.extraReceiptDiscountData ?? r.discountData ?? []) {
@@ -170,6 +172,7 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
     }
   }
 
+  // Prefer ETA totalAmount as the receipt truth when present.
   const totalAmount = r.totalAmount != null ? Number(r.totalAmount) : undefined;
   const netAmount = r.netAmount != null ? Number(r.netAmount) : undefined;
   const targetTotal =
@@ -186,6 +189,7 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
     sourceRef,
   };
 
+  // Don't invent tax when line totals already ≈ receipt total.
   if (!extrasAlreadyIncluded) {
     if (otherTaxAmount > 0) {
       result.tax = otherTaxAmount;
