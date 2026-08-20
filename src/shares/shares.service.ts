@@ -93,9 +93,9 @@ export class SharesService {
     return saved;
   }
 
-  /** Re-derives share rows from an edited item-claim set. Only ever touches
-   * PENDING shares — callers must ensure the bill isn't closed (auto-locked
-   * the moment any share leaves PENDING) before calling this. */
+  /** Re-derives share rows from an edited item-claim set.
+   * PENDING shares can be created/updated/cancelled.
+   * INITIATED/SETTLED shares are left untouched (amount already in flight). */
   async reconcileSharesForBill(
     manager: EntityManager,
     bill: Bill,
@@ -142,16 +142,44 @@ export class SharesService {
         : existingByPhone.get(member.pendingPhone as string);
 
       if (existing) {
-        if (existing.status !== ShareStatus.PENDING) {
-          throw new ConflictException('BILL_CLOSED');
+        if (existing.status === ShareStatus.SETTLED) {
+          // Only fully settled (confirmed received) shares are locked.
+          if (existing.amountPiastres !== dto.amountPiastres) {
+            throw new ConflictException('SHARE_ALREADY_PAID_LOCKED');
+          }
+          keepShareIds.add(existing.id);
+          result.push(existing);
+          continue;
         }
-        const amountChanged = existing.amountPiastres !== dto.amountPiastres;
-        existing.amountPiastres = dto.amountPiastres;
-        const saved = await manager.save(existing);
-        keepShareIds.add(saved.id);
-        result.push(saved);
-        if (amountChanged) updated.push(saved);
-      } else {
+        if (existing.status === ShareStatus.CANCELLED) {
+          // Re-open a cancelled row as a fresh pending share below.
+        } else if (
+          existing.status === ShareStatus.PENDING ||
+          existing.status === ShareStatus.FAILED ||
+          existing.status === ShareStatus.INITIATED
+        ) {
+          const amountChanged = existing.amountPiastres !== dto.amountPiastres;
+          existing.amountPiastres = dto.amountPiastres;
+          // Member marked "I paid" but the split changed — reopen so they can pay the new amount.
+          if (existing.status === ShareStatus.INITIATED && amountChanged) {
+            await this.stateService.transition(manager, existing, ShareStatus.PENDING, {
+              actor: actorUserId,
+              source: AuditSource.USER,
+              reason: 'amount_changed_on_bill_edit',
+            });
+          } else if (existing.status === ShareStatus.FAILED) {
+            existing.status = ShareStatus.PENDING;
+            existing.failureReason = null;
+          }
+          const saved = await manager.save(existing);
+          keepShareIds.add(saved.id);
+          result.push(saved);
+          if (amountChanged) updated.push(saved);
+          continue;
+        }
+      }
+
+      {
         const newShare = manager.create(Share, {
           billId: bill.id,
           groupId: bill.groupId,

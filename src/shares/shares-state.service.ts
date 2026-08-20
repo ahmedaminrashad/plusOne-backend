@@ -56,10 +56,16 @@ export class SharesStateService {
 
     const saved = await manager.save(share);
 
-    // Once a member starts (or completes) paying, item claims can no longer be
-    // edited out from under an in-flight/settled amount — lock the bill for good.
-    if (toState === ShareStatus.INITIATED || toState === ShareStatus.SETTLED) {
-      await manager.update(Bill, { id: share.billId, closedAt: IsNull() }, { closedAt: new Date() });
+    // Lock the bill only when every active share is settled — members can still
+    // edit claims/amounts while the split is only partially paid.
+    if (toState === ShareStatus.SETTLED) {
+      const siblings = await manager.find(Share, { where: { billId: share.billId } });
+      const active = siblings.filter((s) => s.status !== ShareStatus.CANCELLED);
+      const allSettled =
+        active.length > 0 && active.every((s) => s.status === ShareStatus.SETTLED);
+      if (allSettled) {
+        await manager.update(Bill, { id: share.billId, closedAt: IsNull() }, { closedAt: new Date() });
+      }
     }
 
     await this.auditLog.record(manager, {

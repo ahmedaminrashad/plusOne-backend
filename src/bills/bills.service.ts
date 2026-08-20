@@ -90,20 +90,27 @@ export class BillsService {
 
     const shares = await this.sharesService.getBillShares(billId);
     const aggregateStatus = this.sharesService.computeAggregateBillStatus(shares);
+    // Any group member can edit while the bill is not fully settled.
+    // Do not use closedAt here — older builds set it on the first payment.
+    const isEditable = aggregateStatus !== 'fully_settled';
 
-    return { ...bill, shares, aggregateStatus, isEditable: bill.closedAt === null };
+    return { ...bill, shares, aggregateStatus, isEditable };
   }
 
   async updateBillItems(billId: string, userId: string, dto: UpdateBillItemsDto): Promise<Bill & { aggregateStatus: string; shares: unknown[]; isEditable: boolean }> {
     const bill = await this.billsRepo.findOne({ where: { id: billId } });
     if (!bill) throw new NotFoundException('BILL_NOT_FOUND');
     await this.assertMember(bill.groupId, userId);
-    if (bill.closedAt !== null) throw new ConflictException('BILL_CLOSED');
+
+    const existingShares = await this.sharesService.getBillShares(billId);
+    const aggregateStatus = this.sharesService.computeAggregateBillStatus(existingShares);
+    if (aggregateStatus === 'fully_settled') {
+      throw new ConflictException('BILL_FULLY_SETTLED');
+    }
 
     await this.dataSource.transaction(async (manager) => {
       const fresh = await manager.findOne(Bill, { where: { id: billId } });
       if (!fresh) throw new NotFoundException('BILL_NOT_FOUND');
-      if (fresh.closedAt !== null) throw new ConflictException('BILL_CLOSED');
 
       fresh.lineItems = dto.lineItems.map((li): BillLineItem => ({
         name: li.name,
@@ -133,6 +140,11 @@ export class BillsService {
         const deliveryAmt = resolveExtraAmount(fresh.delivery, fresh.deliveryType, subtotal);
         const vatAmt = resolveExtraAmount(fresh.vat, fresh.vatType, subtotal + taxAmt + deliveryAmt);
         fresh.amount = Math.round((subtotal + taxAmt + deliveryAmt + vatAmt) * 100) / 100;
+      }
+
+      // Re-open for chat / detail if this bill was locked too early by an older build.
+      if (fresh.closedAt != null) {
+        fresh.closedAt = null;
       }
 
       await manager.save(fresh);
