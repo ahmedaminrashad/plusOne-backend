@@ -24,6 +24,13 @@ import { notificationTexts } from '../notifications/notification-texts';
 
 const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+/** Matches the initiator "to collect / Remind" list from getMyShares. */
+const REMINDABLE_STATUSES: ShareStatus[] = [
+  ShareStatus.PENDING,
+  ShareStatus.INITIATED,
+  ShareStatus.FAILED,
+];
+
 @Injectable()
 export class SharesService {
   private readonly logger = new Logger(SharesService.name);
@@ -506,7 +513,7 @@ export class SharesService {
     if (share.initiatorUserId !== actorId) {
       throw new ForbiddenException('NOT_BILL_INITIATOR');
     }
-    if (share.status !== ShareStatus.PENDING && share.status !== ShareStatus.FAILED) {
+    if (!REMINDABLE_STATUSES.includes(share.status)) {
       throw new ConflictException('SHARE_REMINDER_NOT_ALLOWED');
     }
 
@@ -528,9 +535,7 @@ export class SharesService {
       throw new ForbiddenException('NOT_BILL_INITIATOR');
     }
 
-    const eligible = shares.filter(
-      (s) => s.status === ShareStatus.PENDING || s.status === ShareStatus.FAILED,
-    );
+    const eligible = shares.filter((s) => REMINDABLE_STATUSES.includes(s.status));
 
     let sent = 0;
     let skipped = 0;
