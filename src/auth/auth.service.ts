@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import { OtpCode } from './entities/otp-code.entity';
@@ -14,6 +14,8 @@ import { User } from '../users/entities/user.entity';
 import { GroupMember, MemberStatus } from '../groups/entities/group-member.entity';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { FirebaseLoginDto } from './dto/firebase-login.dto';
+import { FirebaseAdminService } from '../firebase/firebase-admin.service';
 
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
@@ -35,6 +37,7 @@ export class AuthService {
     @InjectRepository(GroupMember)
     private readonly membersRepo: Repository<GroupMember>,
     private readonly jwtService: JwtService,
+    private readonly firebase: FirebaseAdminService,
   ) {}
 
   async sendOtp(dto: SendOtpDto): Promise<{ message: string; cooldown: number }> {
@@ -75,12 +78,8 @@ export class AuthService {
     console.info(`[OTP] Verifying code for ${phone} | Code: ${code}`);
 
     if (code === MAGIC_OTP) {
-      let user = await this.usersRepo.findOne({ where: { phone } });
-      const isNewUser = !user;
-      if (!user) user = await this.usersRepo.save({ phone });
-      await this.migratePendingInvitations(phone, user.id);
       this.logger.warn(`[OTP] Magic code used for ${phone}`);
-      return this.generateTokens(user, isNewUser);
+      return this.loginByPhone(phone);
     }
 
     const otpRecord = await this.otpRepo.findOne({
@@ -114,16 +113,20 @@ export class AuthService {
     otpRecord.used = true;
     await this.otpRepo.save(otpRecord);
 
-    let user = await this.usersRepo.findOne({ where: { phone } });
-    const isNewUser = !user;
+    return this.loginByPhone(phone);
+  }
 
-    if (!user) {
-      user = await this.usersRepo.save({ phone });
+  /** Android: verifyPhoneNumber → signInWithCredential → send idToken here. */
+  async loginWithFirebase(
+    dto: FirebaseLoginDto,
+  ): Promise<{ accessToken: string; refreshToken: string; isNewUser: boolean }> {
+    const decoded = await this.firebase.verifyIdToken(dto.idToken);
+    const phone = decoded.phone_number;
+    if (!phone) {
+      throw new UnauthorizedException('FIREBASE_PHONE_REQUIRED');
     }
-
-    await this.migratePendingInvitations(phone, user.id);
-
-    return this.generateTokens(user, isNewUser);
+    this.logger.log(`[AUTH] Firebase phone login ${phone}`);
+    return this.loginByPhone(phone);
   }
 
   async refreshTokens(token: string): Promise<{ accessToken: string; refreshToken: string }> {
@@ -152,11 +155,31 @@ export class AuthService {
     }
   }
 
+  private async loginByPhone(
+    phone: string,
+  ): Promise<{ accessToken: string; refreshToken: string; isNewUser: boolean }> {
+    const variants = this.phoneVariants(phone);
+    let user = await this.usersRepo.findOne({ where: { phone: In(variants) } });
+    const isNewUser = !user;
+    if (!user) {
+      user = await this.usersRepo.save({ phone: variants[0] });
+    }
+    await this.migratePendingInvitations(phone, user.id);
+    return this.generateTokens(user, isNewUser);
+  }
+
   private async migratePendingInvitations(phone: string, userId: string): Promise<void> {
     await this.membersRepo.update(
-      { pendingPhone: phone, status: MemberStatus.PENDING },
+      { pendingPhone: In(this.phoneVariants(phone)), status: MemberStatus.PENDING },
       { userId, pendingPhone: null as unknown as string },
     );
+  }
+
+  /** Firebase tokens are E.164 (+20…); existing rows may omit the +. */
+  private phoneVariants(phone: string): string[] {
+    const withPlus = phone.startsWith('+') ? phone : `+${phone}`;
+    const withoutPlus = phone.startsWith('+') ? phone.slice(1) : phone;
+    return [...new Set([withPlus, withoutPlus, phone])];
   }
 
   private async generateTokens(

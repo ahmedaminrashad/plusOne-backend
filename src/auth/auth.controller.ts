@@ -10,6 +10,7 @@ import {
 import { AuthService } from './auth.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { FirebaseLoginDto } from './dto/firebase-login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -27,6 +28,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto);
+  }
+
+  @Post('firebase')
+  @HttpCode(HttpStatus.OK)
+  loginWithFirebase(@Body() dto: FirebaseLoginDto) {
+    return this.authService.loginWithFirebase(dto);
   }
 
   @Post('refresh')
