@@ -14,6 +14,7 @@ export interface ParsedReceiptData {
   sourceRef: string;
 }
 
+
 export type OcrParseResult =
   | { success: true; bill: ParsedReceiptData }
   | { success: false; fallback: 'manual'; reason: string };
