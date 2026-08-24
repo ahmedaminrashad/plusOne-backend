@@ -100,31 +100,38 @@ class EtaReceiptStrategy implements QrStrategy {
 
     const [, hash, rawDate] = match;
     const dateTimeIssued = normalizeEtaDate(rawDate);
+    const headers = {
+      Accept: 'application/json, text/plain, */*',
+      Origin: 'https://invoicing.eta.gov.eg',
+      Referer: 'https://invoicing.eta.gov.eg/',
+    };
 
-    const apiUrl =
-      `${ETA_API_BASE}/api/v1/receipts/${hash}/share` +
-      `?dateTimeIssued=${encodeURIComponent(dateTimeIssued)}`;
+    // QR path date is a truncated dateTimeReceived (e.g. T15:08Z), not
+    // dateTimeIssued. The public share API accepts UUID with no date.
+    const urls = [
+      `${ETA_API_BASE}/api/v1/receipts/${hash}/share`,
+      `${ETA_API_BASE}/api/v1/receipts/${hash}/share?dateTimeIssued=${encodeURIComponent(dateTimeIssued)}`,
+    ];
 
-    const res = await fetch(apiUrl, {
-      headers: {
-        Accept: 'text/plain',
-        Origin: 'https://invoicing.eta.gov.eg',
-        Referer: 'https://invoicing.eta.gov.eg/',
-      },
-    });
+    for (const apiUrl of urls) {
+      const res = await fetch(apiUrl, { headers });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const mapped = mapEtaReceipt(data, payload);
+      if (mapped) return mapped;
+    }
 
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    return mapEtaReceipt(data, payload);
+    return null;
   }
 }
 
 function normalizeEtaDate(raw: string): string {
   const decoded = decodeURIComponent(raw);
+  // "T15:08Z"    → "T15:08:00.000Z"  (QR truncates seconds)
   // "T14:52:Z"   → "T14:52:00.000Z"
   // "T14:52:30Z" → "T14:52:30.000Z"
   return decoded
+    .replace(/T(\d{2}:\d{2})Z$/, 'T$1:00.000Z')
     .replace(/T(\d{2}:\d{2}):Z$/, 'T$1:00.000Z')
     .replace(/T(\d{2}:\d{2}:\d{2})Z$/, 'T$1.000Z');
 }
@@ -138,8 +145,16 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
   if (!r) return null;
 
   const lineItems: BillLineItem[] = (r.itemData ?? []).map((item: any) => {
-    const qty = Number(item.quantity ?? 1) || 1;
-    const lineTotal = Number(item.total ?? item.netTotal ?? NaN);
+    const rawQty = Number(item.quantity ?? 1) || 1;
+    const lineTotal = Number(item.total ?? item.netSale ?? item.netTotal ?? NaN);
+    const unitType = String(item.unitType ?? item.unitTypeName ?? '').toUpperCase();
+    // POS packs (MAF/Seoudi) often encode 1 each as qty 0.001 of a kg-priced SKU.
+    const fractionalEach =
+      rawQty > 0 &&
+      rawQty < 0.01 &&
+      (unitType.includes('EA') || unitType.includes('EACH')) &&
+      Number.isFinite(lineTotal);
+    const qty = fractionalEach ? 1 : rawQty;
     const unitFromTotal = Number.isFinite(lineTotal) ? lineTotal / qty : NaN;
     const unitPrice = Number.isFinite(unitFromTotal)
       ? round2(unitFromTotal)
