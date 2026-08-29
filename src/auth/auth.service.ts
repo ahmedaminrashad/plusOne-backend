@@ -17,6 +17,7 @@ import { Share } from '../shares/entities/share.entity';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { FirebaseLoginDto } from './dto/firebase-login.dto';
+import { FirebaseAdminService } from '../firebase/firebase-admin.service';
 import { phoneLookupVariants } from '../common/utils/phone';
 
 const OTP_EXPIRY_MINUTES = 5;
