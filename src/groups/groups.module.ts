@@ -12,11 +12,13 @@ import { Message } from './entities/message.entity';
 import { User } from '../users/entities/user.entity';
 import { Share } from '../shares/entities/share.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { LinksModule } from '../links/links.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Group, GroupMember, Message, User, Share]),
     NotificationsModule,
+    LinksModule,
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads/chat',

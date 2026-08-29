@@ -35,7 +35,14 @@ export interface GroupLedgerResponse {
   computedAt: Date;
 }
 
-const OUTSTANDING_STATUSES = [ShareStatus.PENDING, ShareStatus.INITIATED, ShareStatus.FAILED];
+const OUTSTANDING_STATUSES = [
+  ShareStatus.PENDING,
+  ShareStatus.INITIATED,
+  ShareStatus.FAILED,
+  ShareStatus.LINK_SENT,
+  ShareStatus.LINK_OPENED,
+  ShareStatus.PENDING_CONFIRMATION,
+];
 
 @Injectable()
 export class LedgerService {

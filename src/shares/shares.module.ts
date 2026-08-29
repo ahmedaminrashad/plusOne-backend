@@ -18,6 +18,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
   ],
   controllers: [SharesController],
   providers: [SharesService, SharesStateService, SharesReminderScheduler],
-  exports: [SharesService],
+  exports: [SharesService, SharesStateService],
 })
 export class SharesModule {}

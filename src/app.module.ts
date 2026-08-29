@@ -13,6 +13,7 @@ import { SharesModule } from './shares/shares.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { FriendsModule } from './friends/friends.module';
 import { PayLinkModule } from './pay-link/pay-link.module';
+import { LinksModule } from './links/links.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 @Module({
@@ -34,6 +35,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     LedgerModule,
     FriendsModule,
     PayLinkModule,
+    LinksModule,
   ],
 })
 export class AppModule implements NestModule {

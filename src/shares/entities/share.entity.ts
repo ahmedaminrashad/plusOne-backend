@@ -19,6 +19,9 @@ export enum ShareStatus {
   SETTLED = 'settled',
   CANCELLED = 'cancelled',
   FAILED = 'failed',
+  LINK_SENT = 'link_sent',
+  LINK_OPENED = 'link_opened',
+  PENDING_CONFIRMATION = 'pending_confirmation',
 }
 
 export enum ShareMethod {

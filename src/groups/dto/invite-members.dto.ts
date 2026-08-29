@@ -1,4 +1,4 @@
-import { IsArray, ArrayMinSize, IsString, Matches } from 'class-validator';
+import { IsArray, ArrayMinSize, IsString, Matches, IsOptional, MaxLength } from 'class-validator';
 
 export class InviteMembersDto {
   @IsArray()
@@ -9,4 +9,11 @@ export class InviteMembersDto {
     message: 'PHONE_INVALID',
   })
   phones: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  names?: string[];
 }
+

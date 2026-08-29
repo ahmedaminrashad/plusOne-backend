@@ -22,6 +22,9 @@ import { InviteMembersDto } from './dto/invite-members.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { notificationTexts } from '../notifications/notification-texts';
+import { InviteLinksService } from '../links/invite-links.service';
+import { InviteKind } from '../links/invite-link.entity';
+import { normalizeEgPhone, phoneLookupVariants } from '../common/utils/phone';
 
 export interface BillSummary {
   id: string;
@@ -64,6 +67,7 @@ export class GroupsService {
     private readonly sharesRepo: Repository<Share>,
     private readonly dataSource: DataSource,
     private readonly notifications: NotificationsService,
+    private readonly invites: InviteLinksService,
   ) {}
 
   async createGroup(userId: string, dto: CreateGroupDto): Promise<Group> {
@@ -152,7 +156,14 @@ export class GroupsService {
     const openShares = await this.sharesRepo.count({
       where: {
         groupId,
-        status: In([ShareStatus.PENDING, ShareStatus.INITIATED, ShareStatus.FAILED]),
+        status: In([
+          ShareStatus.PENDING,
+          ShareStatus.INITIATED,
+          ShareStatus.FAILED,
+          ShareStatus.LINK_SENT,
+          ShareStatus.LINK_OPENED,
+          ShareStatus.PENDING_CONFIRMATION,
+        ]),
       },
     });
     if (openShares > 0) {
@@ -167,22 +178,34 @@ export class GroupsService {
     groupId: string,
     adminId: string,
     dto: InviteMembersDto,
-  ): Promise<{ sent: number; failed: number; alreadyMembers: number }> {
+  ): Promise<{
+    sent: number;
+    failed: number;
+    alreadyMembers: number;
+    sharePayloads: { phone: string; shareText: string; shareUrl: string }[];
+  }> {
     await this.assertAdmin(groupId, adminId);
+    const admin = await this.usersRepo.findOne({ where: { id: adminId } });
+    const group = await this.groupsRepo.findOne({ where: { id: groupId } });
+    const lang = admin?.language === 'en' ? 'en' : 'ar';
 
     let sent = 0;
     let failed = 0;
     let alreadyMembers = 0;
+    const sharePayloads: { phone: string; shareText: string; shareUrl: string }[] = [];
 
-    for (const phone of dto.phones) {
+    for (let i = 0; i < dto.phones.length; i++) {
+      const phone = normalizeEgPhone(dto.phones[i]);
+      const displayName = dto.names?.[i]?.trim() || undefined;
       try {
-        const existing = await this.membersRepo.findOne({
-          where: [
-            { groupId, pendingPhone: phone },
-          ],
+        const variants = phoneLookupVariants(phone);
+        const existingGhost = await this.membersRepo.findOne({
+          where: variants.map((p) => ({ groupId, pendingPhone: p })),
         });
 
-        const registeredUser = await this.usersRepo.findOne({ where: { phone } });
+        const registeredUser = await this.usersRepo.findOne({
+          where: { phone: In(variants) },
+        });
 
         if (registeredUser) {
           const existingActive = await this.membersRepo.findOne({
@@ -200,18 +223,27 @@ export class GroupsService {
             role: MemberRole.MEMBER,
             status: MemberStatus.PENDING,
           });
-          const invitedGroup = await this.groupsRepo.findOne({ where: { id: groupId } });
           if (registeredUser.fcmToken) {
             await this.notifications.send(
               registeredUser.fcmToken,
-              notificationTexts.invitation(registeredUser.language, { groupName: invitedGroup?.name ?? '' }),
+              notificationTexts.invitation(registeredUser.language, { groupName: group?.name ?? '' }),
               { type: 'invitation', groupId },
             );
           }
           this.logger.log(`[INVITE] Notification sent to user ${registeredUser.id} for group ${groupId}`);
         } else {
-          if (existing) {
+          if (existingGhost) {
             alreadyMembers++;
+            const invite = await this.invites.issue({
+              ownerUserId: adminId,
+              kind: InviteKind.GROUP,
+              phone,
+              groupId,
+              inviterName: admin?.displayName ?? '',
+              language: lang,
+              groupName: group?.name ?? '',
+            });
+            sharePayloads.push({ phone, shareText: invite.message, shareUrl: invite.url });
             continue;
           }
 
@@ -219,10 +251,19 @@ export class GroupsService {
             groupId,
             pendingPhone: phone,
             role: MemberRole.MEMBER,
-            status: MemberStatus.PENDING,
+            status: MemberStatus.ACTIVE,
           });
-          // TODO: send SMS invite with deep link
-          this.logger.log(`[INVITE] SMS invite sent to ${phone} for group ${groupId}`);
+          const invite = await this.invites.issue({
+            ownerUserId: adminId,
+            kind: InviteKind.GROUP,
+            phone,
+            groupId,
+            inviterName: admin?.displayName ?? '',
+            language: lang,
+            groupName: group?.name ?? '',
+          });
+          sharePayloads.push({ phone, shareText: invite.message, shareUrl: invite.url });
+          this.logger.log(`[INVITE] Ghost member ${phone}${displayName ? ` (${displayName})` : ''} added to group ${groupId}`);
         }
         sent++;
       } catch {
@@ -230,7 +271,7 @@ export class GroupsService {
       }
     }
 
-    return { sent, failed, alreadyMembers };
+    return { sent, failed, alreadyMembers, sharePayloads };
   }
 
   async removeMember(

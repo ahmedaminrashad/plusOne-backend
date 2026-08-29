@@ -6,9 +6,34 @@ import { AuditLogService } from '../audit/audit-log.service';
 import { AuditSource } from '../audit/entities/audit-log.entity';
 
 const ALLOWED_TRANSITIONS: Record<ShareStatus, ShareStatus[]> = {
-  [ShareStatus.PENDING]: [ShareStatus.INITIATED, ShareStatus.CANCELLED],
-  [ShareStatus.FAILED]: [ShareStatus.INITIATED],
-  [ShareStatus.INITIATED]: [ShareStatus.PENDING, ShareStatus.SETTLED, ShareStatus.FAILED],
+  [ShareStatus.PENDING]: [
+    ShareStatus.INITIATED,
+    ShareStatus.CANCELLED,
+    ShareStatus.LINK_SENT,
+    ShareStatus.LINK_OPENED,
+  ],
+  [ShareStatus.FAILED]: [ShareStatus.INITIATED, ShareStatus.LINK_SENT],
+  [ShareStatus.LINK_SENT]: [
+    ShareStatus.LINK_OPENED,
+    ShareStatus.INITIATED,
+    ShareStatus.PENDING_CONFIRMATION,
+    ShareStatus.CANCELLED,
+  ],
+  [ShareStatus.LINK_OPENED]: [
+    ShareStatus.INITIATED,
+    ShareStatus.PENDING_CONFIRMATION,
+    ShareStatus.CANCELLED,
+  ],
+  [ShareStatus.PENDING_CONFIRMATION]: [
+    ShareStatus.SETTLED,
+    ShareStatus.FAILED,
+    ShareStatus.PENDING,
+  ],
+  [ShareStatus.INITIATED]: [
+    ShareStatus.PENDING,
+    ShareStatus.SETTLED,
+    ShareStatus.FAILED,
+  ],
   [ShareStatus.SETTLED]: [ShareStatus.FAILED],
   [ShareStatus.CANCELLED]: [],
 };

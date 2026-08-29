@@ -12,10 +12,12 @@ import { OtpCode } from './entities/otp-code.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { GroupMember, MemberStatus } from '../groups/entities/group-member.entity';
+import { Friend, FriendStatus } from '../friends/entities/friend.entity';
+import { Share } from '../shares/entities/share.entity';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { FirebaseLoginDto } from './dto/firebase-login.dto';
-import { FirebaseAdminService } from '../firebase/firebase-admin.service';
+import { phoneLookupVariants } from '../common/utils/phone';
 
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
@@ -36,6 +38,10 @@ export class AuthService {
     private readonly usersRepo: Repository<User>,
     @InjectRepository(GroupMember)
     private readonly membersRepo: Repository<GroupMember>,
+    @InjectRepository(Friend)
+    private readonly friendsRepo: Repository<Friend>,
+    @InjectRepository(Share)
+    private readonly sharesRepo: Repository<Share>,
     private readonly jwtService: JwtService,
     private readonly firebase: FirebaseAdminService,
   ) {}
@@ -164,22 +170,66 @@ export class AuthService {
     if (!user) {
       user = await this.usersRepo.save({ phone: variants[0] });
     }
-    await this.migratePendingInvitations(phone, user.id);
+    await this.claimGhostRecords(phone, user.id);
     return this.generateTokens(user, isNewUser);
   }
 
-  private async migratePendingInvitations(phone: string, userId: string): Promise<void> {
-    await this.membersRepo.update(
-      { pendingPhone: In(this.phoneVariants(phone)), status: MemberStatus.PENDING },
-      { userId, pendingPhone: null as unknown as string },
-    );
+  private async claimGhostRecords(phone: string, userId: string): Promise<void> {
+    const variants = phoneLookupVariants(phone);
+
+    await this.friendsRepo
+      .createQueryBuilder()
+      .update()
+      .set({
+        friendUserId: userId,
+        pendingPhone: () => 'NULL',
+        status: FriendStatus.ACTIVE,
+      })
+      .where('pendingPhone IN (:...variants)', { variants })
+      .andWhere('friendUserId IS NULL')
+      .execute();
+
+    const ghostMembers = await this.membersRepo.find({
+      where: variants.map((p) => ({ pendingPhone: p })),
+    });
+    for (const row of ghostMembers) {
+      const already = await this.membersRepo.findOne({
+        where: { groupId: row.groupId, userId },
+      });
+      if (already) {
+        if (already.id !== row.id) {
+          row.status = MemberStatus.REMOVED;
+          row.pendingPhone = null as unknown as string;
+          await this.membersRepo.save(row);
+        }
+        continue;
+      }
+      row.userId = userId;
+      row.pendingPhone = null as unknown as string;
+      if (row.status === MemberStatus.ACTIVE) {
+        row.status = MemberStatus.ACTIVE;
+      }
+      await this.membersRepo.save(row);
+    }
+
+    const ghostShares = await this.sharesRepo.find({
+      where: variants.map((p) => ({ ownerPendingPhone: p })),
+    });
+    for (const share of ghostShares) {
+      if (share.ownerUserId) continue;
+      const clash = await this.sharesRepo.findOne({
+        where: { billId: share.billId, ownerUserId: userId },
+      });
+      if (clash) continue;
+      share.ownerUserId = userId;
+      share.ownerPendingPhone = null;
+      await this.sharesRepo.save(share);
+    }
   }
 
   /** Firebase tokens are E.164 (+20…); existing rows may omit the +. */
   private phoneVariants(phone: string): string[] {
-    const withPlus = phone.startsWith('+') ? phone : `+${phone}`;
-    const withoutPlus = phone.startsWith('+') ? phone.slice(1) : phone;
-    return [...new Set([withPlus, withoutPlus, phone])];
+    return phoneLookupVariants(phone);
   }
 
   private async generateTokens(

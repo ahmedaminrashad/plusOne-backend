@@ -29,6 +29,9 @@ const REMINDABLE_STATUSES: ShareStatus[] = [
   ShareStatus.PENDING,
   ShareStatus.INITIATED,
   ShareStatus.FAILED,
+  ShareStatus.LINK_SENT,
+  ShareStatus.LINK_OPENED,
+  ShareStatus.PENDING_CONFIRMATION,
 ];
 
 @Injectable()
@@ -336,12 +339,12 @@ export class SharesService {
   async getMyShares(userId: string): Promise<Share[]> {
     const [asInitiator, asOwner] = await Promise.all([
       this.sharesRepo.find({
-        where: { initiatorUserId: userId, status: In([ShareStatus.PENDING, ShareStatus.INITIATED, ShareStatus.FAILED]) },
+        where: { initiatorUserId: userId, status: In(REMINDABLE_STATUSES) },
         relations: { owner: true, initiator: true, bill: true, group: true },
         order: { createdAt: 'DESC' },
       }),
       this.sharesRepo.find({
-        where: { ownerUserId: userId, status: In([ShareStatus.PENDING, ShareStatus.INITIATED, ShareStatus.FAILED]) },
+        where: { ownerUserId: userId, status: In(REMINDABLE_STATUSES) },
         relations: { owner: true, initiator: true, bill: true, group: true },
         order: { createdAt: 'DESC' },
       }),
@@ -426,7 +429,10 @@ export class SharesService {
     if (share.initiatorUserId !== userId) {
       throw new ForbiddenException('NOT_BILL_INITIATOR');
     }
-    if (share.status !== ShareStatus.INITIATED) {
+    if (
+      share.status !== ShareStatus.INITIATED &&
+      share.status !== ShareStatus.PENDING_CONFIRMATION
+    ) {
       throw new ConflictException('SHARE_NOT_INITIATED');
     }
 

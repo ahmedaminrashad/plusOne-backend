@@ -10,12 +10,14 @@ import { OtpCode } from './entities/otp-code.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { GroupMember } from '../groups/entities/group-member.entity';
+import { Friend } from '../friends/entities/friend.entity';
+import { Share } from '../shares/entities/share.entity';
 import { FirebaseModule } from '../firebase/firebase.module';
 
 @Module({
   imports: [
     FirebaseModule,
-    TypeOrmModule.forFeature([OtpCode, RefreshToken, User, GroupMember]),
+    TypeOrmModule.forFeature([OtpCode, RefreshToken, User, GroupMember, Friend, Share]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
