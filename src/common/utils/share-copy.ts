@@ -3,7 +3,10 @@ const RLM = '\u200F';
 export type AppLang = 'ar' | 'en';
 
 export function publicAppOrigin(): string {
-  return (process.env.PUBLIC_APP_URL ?? 'https://plusone-app.com').replace(/\/$/, '');
+  // Landing pages (/i/:token, /p/:token) are served by Nest on the API host.
+  // plusone-app.com is the Hostinger marketing site and 404s those paths unless
+  // you proxy /i/ and /p/ there. Override with PUBLIC_APP_URL when that exists.
+  return (process.env.PUBLIC_APP_URL ?? 'https://api.plusone-app.com').replace(/\/$/, '');
 }
 
 export function circleInviteMessage(lang: AppLang, inviterName: string, url: string): string {
