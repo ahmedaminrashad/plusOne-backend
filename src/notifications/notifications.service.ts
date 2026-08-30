@@ -33,12 +33,18 @@ export class NotificationsService {
         data: payload,
         android: { priority: 'high' },
         apns: {
+          headers: {
+            'apns-priority': '10',
+            'apns-push-type': 'alert',
+          },
           payload: {
             aps: {
-              alert: notification,
+              alert: {
+                title: notification.title,
+                body: notification.body,
+              },
               sound: 'default',
               badge: 1,
-              contentAvailable: true,
             },
           },
         },

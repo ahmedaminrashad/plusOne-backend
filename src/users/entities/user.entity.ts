@@ -36,7 +36,7 @@ export class User {
   @Column({ default: false })
   isProfileComplete: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   fcmToken: string;
 
   @Column({ type: 'enum', enum: ['ar', 'en'], default: 'en' })
