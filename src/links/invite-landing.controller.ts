@@ -67,7 +67,9 @@ function landingHtml(opts: { title: string; heading: string; sub: string; showBa
     font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#F4F3EF; color:#182320; padding:24px; }
   .card { max-width:420px; width:100%; background:#fff; border-radius:20px; padding:28px; text-align:center;
     box-shadow:0 4px 20px rgba(0,0,0,.06); }
-  .brand { color:#14665D; font-weight:800; font-size:22px; margin-bottom:12px; }
+  .brand { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:16px; unicode-bidi:isolate; }
+  .brand-logo { width:32px; height:32px; display:block; }
+  .brand-name { color:#14665D; font-weight:800; font-size:22px; }
   h1 { font-size:20px; margin:0 0 8px; }
   p { color:#66706B; line-height:1.5; }
   .badges { display:flex; gap:12px; justify-content:center; margin-top:20px; }
@@ -76,7 +78,13 @@ function landingHtml(opts: { title: string; heading: string; sub: string; showBa
 </head>
 <body>
   <div class="card">
-    <div class="brand">+one</div>
+    <div class="brand" dir="ltr">
+      <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="#14665D"/>
+        <path d="M16 8v16M8 16h16" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">+one</span>
+    </div>
     <h1>${opts.heading}</h1>
     <p>${opts.sub}</p>
     ${badges}

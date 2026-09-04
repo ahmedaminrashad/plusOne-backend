@@ -171,7 +171,7 @@ export class BillsService {
 
       if (claimsChanged) {
         const editor = await manager.findOne(User, { where: { id: userId } });
-        const lang = editor?.language === 'en' ? 'en' : 'ar';
+        const lang = editor?.language === 'ar' ? 'ar' : 'en';
         const billTitle = fresh.venueName || fresh.title || (lang === 'en' ? 'the receipt' : 'الإيصال');
         const editorName = editor?.displayName ?? (lang === 'en' ? 'A member' : 'عضو');
         await manager.save(Message, {

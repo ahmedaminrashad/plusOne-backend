@@ -101,7 +101,7 @@ export class FriendsService {
     const onPlusOne = friend.status === FriendStatus.ACTIVE && !!friend.friendUserId;
     const result = Object.assign(friend, { onPlusOne, created }) as AddFriendResult;
     if (!onPlusOne && friend.pendingPhone) {
-      const lang = owner.language === 'en' ? 'en' : 'ar';
+      const lang = owner.language === 'ar' ? 'ar' : 'en';
       const invite = await this.invites.issue({
         ownerUserId: owner.id,
         kind: InviteKind.CIRCLE,

@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 function pickLang(lang: string | undefined): 'ar' | 'en' {
-  return lang === 'en' ? 'en' : 'ar';
+  return lang === 'ar' ? 'ar' : 'en';
 }
 
 @Controller('p')

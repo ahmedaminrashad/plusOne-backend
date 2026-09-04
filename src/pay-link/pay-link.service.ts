@@ -41,7 +41,7 @@ function escapeHtml(value: string): string {
 const STRINGS = {
   ar: {
     title: 'ادفع حصتك',
-    requestedBy: (name: string) => `${name} طلب حصتك`,
+    requestedBy: (_name: string) => 'يطلب منك دفع نصيبك من فاتورة',
     payButton: 'ادفع بإنستاباي',
     cashButton: 'دفعت كاش',
     paidInstapay: 'دفعت بإنستاباي',
@@ -123,8 +123,8 @@ export class PayLinkService {
       );
     }
 
-    const lang = share.initiator?.language === 'en' ? 'en' : 'ar';
-    const url = `${publicAppOrigin()}/p/${tokenRow.token}`;
+    const lang = share.initiator?.language === 'ar' ? 'ar' : 'en';
+    const url = `${publicAppOrigin()}/p/${tokenRow.token}?lang=${lang}`;
     const amountEg = (share.amountPiastres / 100).toFixed(2);
     const venue = share.bill?.venueName ?? share.bill?.title ?? '';
     const message = payLinkMessage(
@@ -224,7 +224,7 @@ export class PayLinkService {
 
     const share = await this.sharesRepo.findOne({
       where: { id: row.shareId },
-      relations: { initiator: true, bill: true, owner: true },
+      relations: { initiator: true, bill: true, owner: true, group: true },
     });
     if (!share) return this.shell(s.notFound, lang, { state: 'dead' });
     if (share.status === ShareStatus.SETTLED) return this.shell(s.alreadySettled, lang, { state: 'done' });
@@ -242,7 +242,7 @@ export class PayLinkService {
     );
 
     if (share.initiator?.fcmToken) {
-      const nlang = share.initiator.language === 'en' ? 'en' : 'ar';
+      const nlang = share.initiator.language === 'ar' ? 'ar' : 'en';
       await this.notifications.send(
         share.initiator.fcmToken,
         notificationTexts.shareInitiated(nlang, {
@@ -256,6 +256,7 @@ export class PayLinkService {
           shareId: share.id,
           groupId: share.groupId,
           billId: share.billId,
+          groupName: share.group?.name ?? share.bill?.group?.name ?? '',
         },
       );
     }

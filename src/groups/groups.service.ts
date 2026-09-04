@@ -187,7 +187,7 @@ export class GroupsService {
     await this.assertAdmin(groupId, adminId);
     const admin = await this.usersRepo.findOne({ where: { id: adminId } });
     const group = await this.groupsRepo.findOne({ where: { id: groupId } });
-    const lang = admin?.language === 'en' ? 'en' : 'ar';
+    const lang = admin?.language === 'ar' ? 'ar' : 'en';
 
     let sent = 0;
     let failed = 0;
