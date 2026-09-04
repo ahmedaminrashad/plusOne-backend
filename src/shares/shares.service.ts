@@ -104,8 +104,8 @@ export class SharesService {
   }
 
   /** Re-derives share rows from an edited item-claim set.
-   * PENDING shares can be created/updated/cancelled.
-   * INITIATED/SETTLED shares are left untouched (amount already in flight). */
+   * Existing rows are reused (unique bill+owner). CANCELLED shares are reopened.
+   * SETTLED shares stay locked. In-flight shares reset to PENDING if the amount changes. */
   async reconcileSharesForBill(
     manager: EntityManager,
     bill: Bill,
@@ -161,32 +161,47 @@ export class SharesService {
           result.push(existing);
           continue;
         }
+
+        // Unique (billId, ownerUserId / ownerPendingPhone) — never insert a
+        // second row. Re-open cancelled shares and update the rest in place.
+        const amountChanged = existing.amountPiastres !== dto.amountPiastres;
+        existing.amountPiastres = dto.amountPiastres;
+
         if (existing.status === ShareStatus.CANCELLED) {
-          // Re-open a cancelled row as a fresh pending share below.
-        } else if (
-          existing.status === ShareStatus.PENDING ||
-          existing.status === ShareStatus.FAILED ||
-          existing.status === ShareStatus.INITIATED
-        ) {
-          const amountChanged = existing.amountPiastres !== dto.amountPiastres;
-          existing.amountPiastres = dto.amountPiastres;
-          // Member marked "I paid" but the split changed — reopen so they can pay the new amount.
-          if (existing.status === ShareStatus.INITIATED && amountChanged) {
-            await this.stateService.transition(manager, existing, ShareStatus.PENDING, {
-              actor: actorUserId,
-              source: AuditSource.USER,
-              reason: 'amount_changed_on_bill_edit',
-            });
-          } else if (existing.status === ShareStatus.FAILED) {
-            existing.status = ShareStatus.PENDING;
-            existing.failureReason = null;
-          }
-          const saved = await manager.save(existing);
+          const saved = await this.stateService.transition(manager, existing, ShareStatus.PENDING, {
+            actor: actorUserId,
+            source: AuditSource.USER,
+            reason: 'readded_to_bill_items',
+          });
           keepShareIds.add(saved.id);
           result.push(saved);
-          if (amountChanged) updated.push(saved);
+          created.push(saved);
           continue;
         }
+
+        const reopenOnAmountChange =
+          amountChanged &&
+          (existing.status === ShareStatus.INITIATED ||
+            existing.status === ShareStatus.LINK_SENT ||
+            existing.status === ShareStatus.LINK_OPENED ||
+            existing.status === ShareStatus.PENDING_CONFIRMATION);
+
+        if (reopenOnAmountChange) {
+          await this.stateService.transition(manager, existing, ShareStatus.PENDING, {
+            actor: actorUserId,
+            source: AuditSource.USER,
+            reason: 'amount_changed_on_bill_edit',
+          });
+        } else if (existing.status === ShareStatus.FAILED) {
+          existing.status = ShareStatus.PENDING;
+          existing.failureReason = null;
+        }
+
+        const saved = await manager.save(existing);
+        keepShareIds.add(saved.id);
+        result.push(saved);
+        if (amountChanged) updated.push(saved);
+        continue;
       }
 
       {
