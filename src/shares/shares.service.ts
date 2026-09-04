@@ -256,7 +256,13 @@ export class SharesService {
           amountPiastres: share.amountPiastres,
           currency: share.currency,
         }),
-        { type: 'share_assigned', groupId: bill.groupId, billId: bill.id },
+        {
+          type: 'share_assigned',
+          groupId: bill.groupId,
+          billId: bill.id,
+          shareId: share.id,
+          groupName: group?.name ?? '',
+        },
       );
     }
 
@@ -271,7 +277,7 @@ export class SharesService {
           currency: share.currency,
           billTitle: bill.title ?? (owner.language === 'en' ? 'the receipt' : 'الإيصال'),
         }),
-        { type: 'share_updated', groupId: bill.groupId, billId: bill.id, shareId: share.id },
+        { type: 'share_updated', groupId: bill.groupId, billId: bill.id, shareId: share.id, groupName: group?.name ?? '' },
       );
     }
 
@@ -284,7 +290,7 @@ export class SharesService {
           editorName: editor?.displayName ?? (owner.language === 'en' ? 'A friend' : 'صديقك'),
           billTitle: bill.title ?? (owner.language === 'en' ? 'the receipt' : 'الإيصال'),
         }),
-        { type: 'share_removed', groupId: bill.groupId, billId: bill.id, shareId: share.id },
+        { type: 'share_removed', groupId: bill.groupId, billId: bill.id, shareId: share.id, groupName: group?.name ?? '' },
       );
     }
   }
@@ -320,6 +326,7 @@ export class SharesService {
           groupId: bill.groupId,
           groupName: group?.name ?? '',
           billId: bill.id,
+          shareId: share.id,
         },
       );
     }
@@ -388,7 +395,7 @@ export class SharesService {
 
     const withRelations = await this.sharesRepo.findOne({
       where: { id: updated.id },
-      relations: { owner: true, initiator: true, bill: true },
+      relations: { owner: true, initiator: true, bill: true, group: true },
     });
     if (withRelations?.initiator?.fcmToken) {
       const lang = withRelations.initiator.language;
@@ -400,7 +407,13 @@ export class SharesService {
           currency: withRelations.currency,
           billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
-        { type: 'share_initiated', shareId: updated.id },
+        {
+          type: 'share_initiated',
+          shareId: updated.id,
+          groupId: withRelations.groupId,
+          billId: withRelations.billId,
+          groupName: withRelations.group?.name ?? '',
+        },
       );
     }
     return updated;
@@ -631,7 +644,7 @@ export class SharesService {
           currency: share.currency,
           billTitle: share.bill?.title ?? (lang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
-        { type: 'share_stale_nudge', shareId: share.id },
+        { type: 'share_stale_nudge', shareId: share.id, groupId: share.groupId, billId: share.billId },
       );
     }
     share.lastReminderSentAt = now;

@@ -108,6 +108,21 @@ export const notificationTexts = {
         };
   },
 
+  itemsClaimed(
+    language: AppLanguage,
+    params: { editorName: string; billTitle: string },
+  ): NotificationText {
+    return language === 'en'
+      ? {
+          title: 'Items claimed',
+          body: `${params.editorName} claimed their items on ${params.billTitle}`,
+        }
+      : {
+          title: 'تم اختيار الأصناف',
+          body: `${params.editorName} اختار أصنافه من ${params.billTitle}`,
+        };
+  },
+
   shareStaleNudge(
     language: AppLanguage,
     params: { amountPiastres: number; currency: string; billTitle: string },

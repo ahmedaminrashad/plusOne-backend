@@ -11,6 +11,8 @@ import { QrParserService, QrParseResult } from './qr-parser/qr-parser.service';
 import { MindeeOcrService, OcrParseResult } from './ocr/mindee-ocr.service';
 import { SharesService } from '../shares/shares.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { notificationTexts } from '../notifications/notification-texts';
+import { User } from '../users/entities/user.entity';
 
 function resolveExtraAmount(
   value: number | null | undefined,
@@ -50,7 +52,7 @@ export class BillsService {
   async createBill(groupId: string, userId: string, dto: CreateBillDto): Promise<Bill> {
     const membership = await this.assertMember(groupId, userId);
     const { shares, ...billFields } = dto;
-    const title = dto.title || dto.venueName || 'إيصال';
+    const title = dto.title || dto.venueName || null;
 
     const savedId = await this.dataSource.transaction(async (manager) => {
       const bill = manager.create(Bill, {
@@ -119,6 +121,13 @@ export class BillsService {
       throw new ConflictException('BILL_FULLY_SETTLED');
     }
 
+    const previousItems = bill.lineItems ?? [];
+    const claimsChanged = dto.lineItems.some((li, idx) => {
+      const prev = [...(previousItems[idx]?.claimedBy ?? [])].sort().join('|');
+      const next = [...(li.claimedBy ?? [])].sort().join('|');
+      return prev !== next;
+    });
+
     await this.dataSource.transaction(async (manager) => {
       const fresh = await manager.findOne(Bill, { where: { id: billId } });
       if (!fresh) throw new NotFoundException('BILL_NOT_FOUND');
@@ -160,8 +169,27 @@ export class BillsService {
 
       await manager.save(fresh);
 
+      if (claimsChanged) {
+        const editor = await manager.findOne(User, { where: { id: userId } });
+        const lang = editor?.language === 'en' ? 'en' : 'ar';
+        const billTitle = fresh.venueName || fresh.title || (lang === 'en' ? 'the receipt' : 'الإيصال');
+        const editorName = editor?.displayName ?? (lang === 'en' ? 'A member' : 'عضو');
+        await manager.save(Message, {
+          groupId: fresh.groupId,
+          senderId: userId,
+          text:
+            lang === 'en'
+              ? `${editorName} claimed their items on ${billTitle}`
+              : `${editorName} اختار أصنافه من ${billTitle}`,
+        });
+      }
+
       await this.sharesService.reconcileSharesForBill(manager, fresh, dto.shares, userId);
     });
+
+    if (claimsChanged) {
+      this.notifyItemsClaimed(bill.groupId, userId, bill).catch(() => {});
+    }
 
     return this.getBillDetail(billId, userId);
   }
@@ -224,6 +252,33 @@ export class BillsService {
         this.notifications.send(
           m.user!.fcmToken!,
           { title: senderName ?? 'User', body: `🧾 ${bill.title ?? 'Receipt'} — ${bill.amount} ${bill.currency}` },
+          { type: 'chat_message', groupId, groupName: group?.name ?? '' },
+        ),
+      ),
+    );
+  }
+
+  private async notifyItemsClaimed(groupId: string, senderId: string, bill: Bill): Promise<void> {
+    const [members, group, editor] = await Promise.all([
+      this.membersRepo.find({
+        where: { groupId, status: 'active' as any },
+        relations: { user: true },
+      }),
+      this.dataSource.getRepository(Group).findOne({ where: { id: groupId } }),
+      this.dataSource.getRepository(User).findOne({ where: { id: senderId } }),
+    ]);
+    const recipients = members.filter((m) => m.userId && m.userId !== senderId && m.user?.fcmToken);
+    const editorName = editor?.displayName ?? 'A member';
+    const billTitle = bill.venueName || bill.title || 'the receipt';
+
+    await Promise.allSettled(
+      recipients.map((m) =>
+        this.notifications.send(
+          m.user!.fcmToken!,
+          notificationTexts.itemsClaimed(m.user!.language, {
+            editorName,
+            billTitle,
+          }),
           { type: 'chat_message', groupId, groupName: group?.name ?? '' },
         ),
       ),
