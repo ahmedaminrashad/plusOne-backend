@@ -8,6 +8,11 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
 
+  @Get('home')
+  getHomeSummary(@CurrentUser() user: any) {
+    return this.ledgerService.getHomeSummary(user.id);
+  }
+
   @Get('group/:groupId')
   getGroupLedger(@Param('groupId') groupId: string, @CurrentUser() user: any) {
     return this.ledgerService.getGroupLedger(groupId, user.id);

@@ -23,6 +23,7 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { notificationTexts } from '../notifications/notification-texts';
 import { InviteLinksService } from '../links/invite-links.service';
+import { toListGroup, toPublicUser, publicAssetUrl } from '../common/public-user';
 import { InviteKind } from '../links/invite-link.entity';
 import { normalizeEgPhone, phoneLookupVariants } from '../common/utils/phone';
 
@@ -70,7 +71,7 @@ export class GroupsService {
     private readonly invites: InviteLinksService,
   ) {}
 
-  async createGroup(userId: string, dto: CreateGroupDto): Promise<Group> {
+  async createGroup(userId: string, dto: CreateGroupDto) {
     return this.dataSource.transaction(async (manager) => {
       const group = manager.create(Group, {
         name: dto.name,
@@ -91,11 +92,11 @@ export class GroupsService {
         relations: { members: { user: true } },
       });
       if (!result) throw new InternalServerErrorException('GROUP_CREATION_FAILED');
-      return result;
+      return toListGroup(result);
     });
   }
 
-  async getUserGroups(userId: string): Promise<Group[]> {
+  async getUserGroups(userId: string) {
     const memberships = await this.membersRepo.find({
       where: { userId, status: MemberStatus.ACTIVE },
       relations: { group: { members: { user: true } } },
@@ -126,7 +127,9 @@ export class GroupsService {
     );
 
     const order = new Map(activityRows.map((row, index) => [row.id, index]));
-    return groups.sort((a, b) => (order.get(a.id) ?? 9999) - (order.get(b.id) ?? 9999));
+    return groups
+      .sort((a, b) => (order.get(a.id) ?? 9999) - (order.get(b.id) ?? 9999))
+      .map(toListGroup);
   }
 
   async getGroup(groupId: string, userId: string): Promise<Group> {
@@ -136,7 +139,14 @@ export class GroupsService {
       relations: { members: { user: true } },
     });
     if (!group) throw new NotFoundException('GROUP_NOT_FOUND');
-    return group;
+    return {
+      ...group,
+      avatarUrl: publicAssetUrl(group.avatarUrl) as Group['avatarUrl'],
+      members: (group.members ?? []).map((m) => ({
+        ...m,
+        user: toPublicUser(m.user, { includeContact: true }) as User,
+      })),
+    };
   }
 
   async updateGroup(groupId: string, adminId: string, dto: UpdateGroupDto): Promise<Group> {
@@ -315,11 +325,17 @@ export class GroupsService {
       .where('pendingPhone = :phone AND status = :status', { phone, status: MemberStatus.PENDING })
       .execute();
 
-    return this.membersRepo.find({
+    const invites = await this.membersRepo.find({
       where: { userId, status: MemberStatus.PENDING },
       relations: { group: true },
       order: { createdAt: 'DESC' },
     });
+    return invites.map((inv) => ({
+      ...inv,
+      group: inv.group
+        ? { ...inv.group, avatarUrl: publicAssetUrl(inv.group.avatarUrl) as Group['avatarUrl'] }
+        : inv.group,
+    }));
   }
 
   async acceptInvitation(membershipId: string, userId: string): Promise<void> {
@@ -364,11 +380,15 @@ export class GroupsService {
 
   async getMembers(groupId: string, userId: string): Promise<GroupMember[]> {
     await this.assertMembership(groupId, userId);
-    return this.membersRepo.find({
+    const members = await this.membersRepo.find({
       where: { groupId },
       relations: { user: true },
       order: { createdAt: 'ASC' },
     });
+    return members.map((m) => ({
+      ...m,
+      user: toPublicUser(m.user, { includeContact: true }) as User,
+    }));
   }
 
   async sendMessage(groupId: string, senderId: string, dto: CreateMessageDto): Promise<MessageResponse> {

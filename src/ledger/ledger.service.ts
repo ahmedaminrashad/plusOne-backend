@@ -165,6 +165,77 @@ export class LedgerService {
     };
   }
 
+  /**
+   * One round-trip for Home: hero totals + badge counts + per-group nets.
+   * Replaces N× GET /ledger/group plus GET /shares/mine on the home screen.
+   */
+  async getHomeSummary(userId: string): Promise<{
+    owedPiastres: number;
+    owePiastres: number;
+    approvalCount: number;
+    toPayCount: number;
+    invitationCount: number;
+    groupNets: Record<string, number>;
+  }> {
+    const outstanding = [
+      ShareStatus.PENDING,
+      ShareStatus.INITIATED,
+      ShareStatus.FAILED,
+      ShareStatus.LINK_SENT,
+      ShareStatus.LINK_OPENED,
+      ShareStatus.PENDING_CONFIRMATION,
+    ];
+
+    const netRows: Array<{ groupId: string; net: string }> = await this.sharesRepo
+      .createQueryBuilder('s')
+      .innerJoin(
+        GroupMember,
+        'gm',
+        'gm.groupId = s.groupId AND gm.userId = :userId AND gm.status = :active',
+        { userId, active: MemberStatus.ACTIVE },
+      )
+      .select('s.groupId', 'groupId')
+      .addSelect(
+        `SUM(CASE WHEN s.initiatorUserId = :userId AND s.status IN (:...outstanding) THEN s.amountPiastres ELSE 0 END)
+         - SUM(CASE WHEN s.ownerUserId = :userId AND s.status IN (:...outstanding) THEN s.amountPiastres ELSE 0 END)`,
+        'net',
+      )
+      .where('s.status IN (:...outstanding)', { outstanding, userId })
+      .groupBy('s.groupId')
+      .getRawMany();
+
+    const groupNets: Record<string, number> = {};
+    let owedPiastres = 0;
+    let owePiastres = 0;
+    for (const row of netRows) {
+      const net = Number(row.net) || 0;
+      groupNets[row.groupId] = net;
+      if (net > 0) owedPiastres += net;
+      else if (net < 0) owePiastres += -net;
+    }
+
+    const [approvalCount, toPayCount, invitationCount] = await Promise.all([
+      this.sharesRepo.count({
+        where: { initiatorUserId: userId, status: ShareStatus.INITIATED },
+      }),
+      this.sharesRepo.count({
+        where: { ownerUserId: userId, status: In([ShareStatus.PENDING, ShareStatus.FAILED]) },
+      }),
+      this.membersRepo.count({
+        where: { userId, status: MemberStatus.PENDING },
+      }),
+    ]);
+
+    return {
+      owedPiastres,
+      owePiastres,
+      approvalCount,
+      toPayCount,
+      invitationCount,
+      groupNets,
+    };
+  }
+
   private getCairoYearMonth(date: Date): { year: number; month: number } {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Africa/Cairo',

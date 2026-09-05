@@ -21,6 +21,7 @@ import { SaveLanguageDto } from './dto/save-language.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from './entities/user.entity';
+import { stripUserSecrets } from '../common/public-user';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -29,7 +30,7 @@ export class UsersController {
 
   @Get('me')
   getMe(@CurrentUser() user: User) {
-    return user;
+    return stripUserSecrets(user);
   }
 
   @Patch('me')
