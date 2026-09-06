@@ -177,41 +177,38 @@ export class LedgerService {
     invitationCount: number;
     groupNets: Record<string, number>;
   }> {
-    const outstanding = [
-      ShareStatus.PENDING,
-      ShareStatus.INITIATED,
-      ShareStatus.FAILED,
-      ShareStatus.LINK_SENT,
-      ShareStatus.LINK_OPENED,
-      ShareStatus.PENDING_CONFIRMATION,
-    ];
-
-    const netRows: Array<{ groupId: string; net: string }> = await this.sharesRepo
-      .createQueryBuilder('s')
-      .innerJoin(
-        GroupMember,
-        'gm',
-        'gm.groupId = s.groupId AND gm.userId = :userId AND gm.status = :active',
-        { userId, active: MemberStatus.ACTIVE },
-      )
-      .select('s.groupId', 'groupId')
-      .addSelect(
-        `SUM(CASE WHEN s.initiatorUserId = :userId AND s.status IN (:...outstanding) THEN s.amountPiastres ELSE 0 END)
-         - SUM(CASE WHEN s.ownerUserId = :userId AND s.status IN (:...outstanding) THEN s.amountPiastres ELSE 0 END)`,
-        'net',
-      )
-      .where('s.status IN (:...outstanding)', { outstanding, userId })
-      .groupBy('s.groupId')
-      .getRawMany();
+    const memberships = await this.membersRepo.find({
+      where: { userId, status: MemberStatus.ACTIVE },
+      select: { id: true, groupId: true },
+    });
+    const groupIds = memberships.map((m) => m.groupId);
 
     const groupNets: Record<string, number> = {};
     let owedPiastres = 0;
     let owePiastres = 0;
-    for (const row of netRows) {
-      const net = Number(row.net) || 0;
-      groupNets[row.groupId] = net;
-      if (net > 0) owedPiastres += net;
-      else if (net < 0) owePiastres += -net;
+
+    if (groupIds.length > 0) {
+      const shares = await this.sharesRepo.find({
+        where: { groupId: In(groupIds), status: In(OUTSTANDING_STATUSES) },
+        select: {
+          id: true,
+          groupId: true,
+          initiatorUserId: true,
+          ownerUserId: true,
+          amountPiastres: true,
+        },
+      });
+      for (const share of shares) {
+        let delta = 0;
+        if (share.initiatorUserId === userId) delta += share.amountPiastres;
+        if (share.ownerUserId === userId) delta -= share.amountPiastres;
+        if (!delta) continue;
+        groupNets[share.groupId] = (groupNets[share.groupId] ?? 0) + delta;
+      }
+      for (const net of Object.values(groupNets)) {
+        if (net > 0) owedPiastres += net;
+        else if (net < 0) owePiastres += -net;
+      }
     }
 
     const [approvalCount, toPayCount, invitationCount] = await Promise.all([
