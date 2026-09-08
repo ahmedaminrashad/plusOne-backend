@@ -399,8 +399,9 @@ export class PayLinkService {
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: #F4F3EF; color: #182320; font-family: -apple-system, Segoe UI, Roboto, Tahoma, Arial, sans-serif; padding: 24px; }
   .card { max-width: 400px; width: 100%; }
-  .brand { text-align: center; margin-bottom: 16px; }
-  .brand img { width: 72px; height: 72px; border-radius: 18px; display: inline-block; }
+  .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 16px; unicode-bidi: isolate; }
+  .brand img { width: 48px; height: 48px; border-radius: 12px; display: block; }
+  .brand-name { font-weight: 800; font-size: 28px; color: #14665D; letter-spacing: -0.03em; }
   .lang { text-align: ${lang === 'ar' ? 'left' : 'right'}; margin-bottom: 8px; }
   .lang a { color: #14665D; font-size: 13px; font-weight: 600; text-decoration: none; }
   .panel { background: #fff; border-radius: 20px; padding: 24px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
@@ -423,8 +424,9 @@ export class PayLinkService {
 </head>
 <body>
   <div class="card">
-    <div class="brand">
-    <img src="/static/logo.png" alt="+one" width="72" height="72" />
+    <div class="brand" dir="ltr">
+    <img src="/static/logo.png" alt="+one" width="48" height="48" />
+    <span class="brand-name">+one</span>
     </div>
     ${bodyHtml}
   </div>
