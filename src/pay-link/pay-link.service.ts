@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { Share, ShareStatus, ShareMethod } from '../shares/entities/share.entity';
+import {
+  Share,
+  ShareStatus,
+  ShareMethod,
+} from '../shares/entities/share.entity';
 import { PayLinkToken } from '../links/pay-link-token.entity';
 import { GroupMember } from '../groups/entities/group-member.entity';
 import { SharesStateService } from '../shares/shares-state.service';
@@ -20,14 +24,6 @@ import { payLinkMessage, publicAppOrigin } from '../common/utils/share-copy';
 
 const PAY_LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DAILY_PAY_LINK_CAP = 40;
-
-const BRAND_MARK = `<div class="brand" dir="ltr">
-  <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
-    <rect width="32" height="32" rx="8" fill="#14665D"/>
-    <path d="M16 8v16M8 16h16" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
-  </svg>
-  <span class="brand-name">+one</span>
-</div>`;
 
 function escapeHtml(value: string): string {
   return value
@@ -45,7 +41,8 @@ const STRINGS = {
     payButton: 'ادفع بإنستاباي',
     cashButton: 'دفعت كاش',
     paidInstapay: 'دفعت بإنستاباي',
-    neverHolds: (name: string) => `فلوس إنستاباي بتروح لـ ${name} على طول — بلس ون مابيمسكش فلوسك أبدًا.`,
+    neverHolds: (name: string) =>
+      `فلوس إنستاباي بتروح لـ ${name} على طول — بلس ون مابيمسكش فلوسك أبدًا.`,
     cta: 'حمّل بلس ون',
     alreadySettled: 'الحصة دي اتسوّت خلاص، شكرًا ليك!',
     expired: 'الرابط ده منتهي. اطلب رابط جديد من صاحبك.',
@@ -62,14 +59,17 @@ const STRINGS = {
     payButton: 'Pay with InstaPay',
     cashButton: 'I paid in cash',
     paidInstapay: "I've paid with InstaPay",
-    neverHolds: (name: string) => `InstaPay goes directly to ${name} — +one never holds funds.`,
+    neverHolds: (name: string) =>
+      `InstaPay goes directly to ${name} — +one never holds funds.`,
     cta: 'Get +one',
     alreadySettled: 'This share is already settled — thank you!',
     expired: 'This link has expired. Ask your friend for a new one.',
     notFound: "This link doesn't exist or has expired.",
     noAlias: (name: string) => `${name} hasn't added an InstaPay number yet.`,
-    awaiting: 'We notified the person who paid. They confirm before this counts as settled.',
-    cashNoted: 'Cash noted. The person who paid still needs to mark it received.',
+    awaiting:
+      'We notified the person who paid. They confirm before this counts as settled.',
+    cashNoted:
+      'Cash noted. The person who paid still needs to mark it received.',
     itemsTitle: 'Your items',
     langToggle: 'العربية',
   },
@@ -79,22 +79,30 @@ const STRINGS = {
 export class PayLinkService {
   constructor(
     @InjectRepository(Share) private sharesRepo: Repository<Share>,
-    @InjectRepository(PayLinkToken) private tokensRepo: Repository<PayLinkToken>,
+    @InjectRepository(PayLinkToken)
+    private tokensRepo: Repository<PayLinkToken>,
     @InjectRepository(GroupMember) private membersRepo: Repository<GroupMember>,
     private readonly dataSource: DataSource,
     private readonly stateService: SharesStateService,
     private readonly notifications: NotificationsService,
   ) {}
 
-  async issue(shareId: string, userId: string): Promise<{ url: string; message: string; token: string }> {
+  async issue(
+    shareId: string,
+    userId: string,
+  ): Promise<{ url: string; message: string; token: string }> {
     const share = await this.sharesRepo.findOne({
       where: { id: shareId },
       relations: { initiator: true, bill: true, owner: true },
     });
     if (!share) throw new NotFoundException('SHARE_NOT_FOUND');
-    if (share.initiatorUserId !== userId) throw new ForbiddenException('NOT_BILL_INITIATOR');
+    if (share.initiatorUserId !== userId)
+      throw new ForbiddenException('NOT_BILL_INITIATOR');
     if (share.ownerUserId) throw new BadRequestException('SHARE_HAS_APP_USER');
-    if (share.status === ShareStatus.SETTLED || share.status === ShareStatus.CANCELLED) {
+    if (
+      share.status === ShareStatus.SETTLED ||
+      share.status === ShareStatus.CANCELLED
+    ) {
       throw new ConflictException('SHARE_NOT_PAYABLE');
     }
 
@@ -113,7 +121,10 @@ export class PayLinkService {
       });
     }
 
-    if (share.status === ShareStatus.PENDING || share.status === ShareStatus.FAILED) {
+    if (
+      share.status === ShareStatus.PENDING ||
+      share.status === ShareStatus.FAILED
+    ) {
       await this.dataSource.transaction((manager) =>
         this.stateService.transition(manager, share, ShareStatus.LINK_SENT, {
           actor: userId,
@@ -139,7 +150,10 @@ export class PayLinkService {
 
   async renderPayPage(token: string, lang: 'ar' | 'en'): Promise<string> {
     const s = STRINGS[lang];
-    const row = await this.tokensRepo.findOne({ where: { token }, relations: { share: true } });
+    const row = await this.tokensRepo.findOne({
+      where: { token },
+      relations: { share: true },
+    });
     if (!row) return this.shell(s.notFound, lang, { state: 'dead' });
 
     if (row.expiresAt < new Date()) {
@@ -165,19 +179,29 @@ export class PayLinkService {
     if (!row.openedAt) {
       row.openedAt = new Date();
       await this.tokensRepo.save(row);
-      if (share.status === ShareStatus.LINK_SENT || share.status === ShareStatus.PENDING) {
+      if (
+        share.status === ShareStatus.LINK_SENT ||
+        share.status === ShareStatus.PENDING
+      ) {
         await this.dataSource.transaction((manager) =>
-          this.stateService.transition(manager, share, ShareStatus.LINK_OPENED, {
-            actor: null,
-            source: AuditSource.SYSTEM,
-            reason: 'pay_link_opened',
-          }),
+          this.stateService.transition(
+            manager,
+            share,
+            ShareStatus.LINK_OPENED,
+            {
+              actor: null,
+              source: AuditSource.SYSTEM,
+              reason: 'pay_link_opened',
+            },
+          ),
         );
         share.status = ShareStatus.LINK_OPENED;
       }
     }
 
-    const payerName = share.initiator?.displayName ?? (lang === 'ar' ? 'صاحب الفاتورة' : 'the bill owner');
+    const payerName =
+      share.initiator?.displayName ??
+      (lang === 'ar' ? 'صاحب الفاتورة' : 'the bill owner');
     const amountText = (share.amountPiastres / 100).toFixed(2);
     const venue = share.bill?.venueName ?? share.bill?.title ?? '';
     const groupName = share.group?.name ?? '';
@@ -185,14 +209,19 @@ export class PayLinkService {
     const itemsHtml = await this.itemsBreakdown(share, lang);
 
     if (!share.initiator?.instaPayAlias) {
-      return this.shell(s.noAlias(escapeHtml(payerName)), lang, { state: 'dead' });
+      return this.shell(s.noAlias(escapeHtml(payerName)), lang, {
+        state: 'dead',
+      });
     }
 
-    const payHref = escapeHtml(buildInstaPayLink(share.initiator.instaPayAlias));
+    const payHref = escapeHtml(
+      buildInstaPayLink(share.initiator.instaPayAlias),
+    );
     const otherLang = lang === 'ar' ? 'en' : 'ar';
     const toggleHref = `/p/${encodeURIComponent(token)}?lang=${otherLang}`;
 
-    return this.page(`
+    return this.page(
+      `
       <div class="lang"><a href="${toggleHref}">${s.langToggle}</a></div>
       <div class="panel">
         <div class="payer-name" dir="auto">${escapeHtml(payerName)}</div>
@@ -214,31 +243,48 @@ export class PayLinkService {
         <div class="note">${escapeHtml(s.neverHolds(payerName))}</div>
       </div>
       <a class="cta" href="${publicAppOrigin()}">${s.cta}</a>
-    `, lang);
+    `,
+      lang,
+    );
   }
 
-  async markPaid(token: string, method: 'cash' | 'instapay', lang: 'ar' | 'en'): Promise<string> {
+  async markPaid(
+    token: string,
+    method: 'cash' | 'instapay',
+    lang: 'ar' | 'en',
+  ): Promise<string> {
     const s = STRINGS[lang];
     const row = await this.tokensRepo.findOne({ where: { token } });
-    if (!row || row.expiresAt < new Date()) return this.shell(s.expired, lang, { state: 'dead' });
+    if (!row || row.expiresAt < new Date())
+      return this.shell(s.expired, lang, { state: 'dead' });
 
     const share = await this.sharesRepo.findOne({
       where: { id: row.shareId },
       relations: { initiator: true, bill: true, owner: true, group: true },
     });
     if (!share) return this.shell(s.notFound, lang, { state: 'dead' });
-    if (share.status === ShareStatus.SETTLED) return this.shell(s.alreadySettled, lang, { state: 'done' });
-    if (share.status === ShareStatus.PENDING_CONFIRMATION || share.status === ShareStatus.INITIATED) {
+    if (share.status === ShareStatus.SETTLED)
+      return this.shell(s.alreadySettled, lang, { state: 'done' });
+    if (
+      share.status === ShareStatus.PENDING_CONFIRMATION ||
+      share.status === ShareStatus.INITIATED
+    ) {
       return this.shell(s.awaiting, lang, { state: 'done' });
     }
 
     share.method = method === 'cash' ? ShareMethod.CASH : ShareMethod.INSTAPAY;
     await this.dataSource.transaction((manager) =>
-      this.stateService.transition(manager, share, ShareStatus.PENDING_CONFIRMATION, {
-        actor: null,
-        source: AuditSource.SYSTEM,
-        reason: method === 'cash' ? 'web_cash_claimed' : 'web_instapay_claimed',
-      }),
+      this.stateService.transition(
+        manager,
+        share,
+        ShareStatus.PENDING_CONFIRMATION,
+        {
+          actor: null,
+          source: AuditSource.SYSTEM,
+          reason:
+            method === 'cash' ? 'web_cash_claimed' : 'web_instapay_claimed',
+        },
+      ),
     );
 
     if (share.initiator?.fcmToken) {
@@ -246,10 +292,12 @@ export class PayLinkService {
       await this.notifications.send(
         share.initiator.fcmToken,
         notificationTexts.shareInitiated(nlang, {
-          ownerName: share.ownerPendingPhone ?? (nlang === 'en' ? 'A +1' : 'ضيف'),
+          ownerName:
+            share.ownerPendingPhone ?? (nlang === 'en' ? 'A +1' : 'ضيف'),
           amountPiastres: share.amountPiastres,
           currency: share.currency,
-          billTitle: share.bill?.title ?? (nlang === 'en' ? 'the receipt' : 'الإيصال'),
+          billTitle:
+            share.bill?.title ?? (nlang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
         {
           type: 'share_initiated',
@@ -261,7 +309,9 @@ export class PayLinkService {
       );
     }
 
-    return this.shell(method === 'cash' ? s.cashNoted : s.awaiting, lang, { state: 'done' });
+    return this.shell(method === 'cash' ? s.cashNoted : s.awaiting, lang, {
+      state: 'done',
+    });
   }
 
   async renderByShareId(shareId: string, lang: 'ar' | 'en'): Promise<string> {
@@ -270,20 +320,32 @@ export class PayLinkService {
     return this.renderPayPage('missing', lang);
   }
 
-  private async itemsBreakdown(share: Share, lang: 'ar' | 'en'): Promise<string> {
+  private async itemsBreakdown(
+    share: Share,
+    lang: 'ar' | 'en',
+  ): Promise<string> {
     const items = share.bill?.lineItems ?? [];
     if (!items.length) return '';
-    const members = await this.membersRepo.find({ where: { groupId: share.groupId } });
+    const members = await this.membersRepo.find({
+      where: { groupId: share.groupId },
+    });
     const mine = members.filter(
       (m) =>
         (share.ownerUserId && m.userId === share.ownerUserId) ||
         (share.ownerPendingPhone && m.pendingPhone === share.ownerPendingPhone),
     );
-    const ids = new Set(mine.flatMap((m) => [m.id, m.userId].filter(Boolean) as string[]));
-    const mineItems = items.filter((it) => (it.claimedBy ?? []).some((id) => ids.has(id)));
+    const ids = new Set(
+      mine.flatMap((m) => [m.id, m.userId].filter(Boolean) as string[]),
+    );
+    const mineItems = items.filter((it) =>
+      (it.claimedBy ?? []).some((id) => ids.has(id)),
+    );
     if (!mineItems.length) return '';
     const rows = mineItems
-      .map((it) => `<li>${escapeHtml(it.name)} · ${(it.qty * it.unitPrice).toFixed(2)}</li>`)
+      .map(
+        (it) =>
+          `<li>${escapeHtml(it.name)} · ${(it.qty * it.unitPrice).toFixed(2)}</li>`,
+      )
       .join('');
     return `<div class="items"><div class="items-title">${STRINGS[lang].itemsTitle}</div><ul>${rows}</ul></div>`;
   }
@@ -297,10 +359,15 @@ export class PayLinkService {
       .where('s.initiatorUserId = :userId', { userId })
       .andWhere('t.createdAt > :since', { since })
       .getCount();
-    if (count >= DAILY_PAY_LINK_CAP) throw new BadRequestException('PAY_LINK_RATE_LIMITED');
+    if (count >= DAILY_PAY_LINK_CAP)
+      throw new BadRequestException('PAY_LINK_RATE_LIMITED');
   }
 
-  private shell(message: string, lang: 'ar' | 'en', opts: { state: 'dead' | 'done' }): string {
+  private shell(
+    message: string,
+    lang: 'ar' | 'en',
+    opts: { state: 'dead' | 'done' },
+  ): string {
     const icon = opts.state === 'done' ? '✅' : '🔗';
     return this.page(
       `<div class="panel"><div class="status-icon">${icon}</div><div>${escapeHtml(message)}</div></div>`,
@@ -332,9 +399,6 @@ export class PayLinkService {
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: #F4F3EF; color: #182320; font-family: -apple-system, Segoe UI, Roboto, Tahoma, Arial, sans-serif; padding: 24px; }
   .card { max-width: 400px; width: 100%; }
-  .brand { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px; unicode-bidi: isolate; }
-  .brand-logo { width: 32px; height: 32px; display: block; }
-  .brand-name { font-weight: 800; font-size: 22px; color: #14665D; letter-spacing: -0.02em; }
   .brand { text-align: center; margin-bottom: 16px; }
   .brand img { width: 72px; height: 72px; border-radius: 18px; display: inline-block; }
   .lang { text-align: ${lang === 'ar' ? 'left' : 'right'}; margin-bottom: 8px; }
@@ -359,8 +423,9 @@ export class PayLinkService {
 </head>
 <body>
   <div class="card">
-    ${BRAND_MARK}
-    <div class="brand"><img src="/static/logo.png" alt="+one" width="72" height="72" /></div>
+    <div class="brand">
+    <img src="/static/logo.png" alt="+one" width="72" height="72" />
+    </div>
     ${bodyHtml}
   </div>
 </body>
