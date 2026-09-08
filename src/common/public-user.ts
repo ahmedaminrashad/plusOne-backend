@@ -42,12 +42,21 @@ export function toListMember(member: GroupMember) {
 }
 
 export function toListGroup(group: Group) {
+  const active = (group.members ?? []).filter((m) => m.status === 'active');
   return {
     id: group.id,
     name: group.name,
     category: group.category,
     avatarUrl: publicAssetUrl(group.avatarUrl),
-    members: (group.members ?? []).map(toListMember),
+    memberCount: active.length,
+    // Initials only — full photos on the list were decoded on Home and
+    // jetsam-killed backboardd on iPhone 11.
+    members: active.slice(0, 4).map((m) => {
+      const listed = toListMember(m);
+      return listed.user
+        ? { ...listed, user: { ...listed.user, photoUrl: null } }
+        : listed;
+    }),
     createdAt: group.createdAt,
     updatedAt: group.updatedAt,
   };

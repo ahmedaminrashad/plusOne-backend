@@ -99,7 +99,7 @@ export class GroupsService {
   async getUserGroups(userId: string) {
     const memberships = await this.membersRepo.find({
       where: { userId, status: MemberStatus.ACTIVE },
-      relations: { group: { members: { user: true } } },
+      relations: { group: { members: true } },
     });
 
     const groups = memberships
@@ -107,6 +107,29 @@ export class GroupsService {
       .filter((g): g is Group => !!g && !g.deletedAt);
 
     if (groups.length === 0) return [];
+
+    const previewUserIds = [
+      ...new Set(
+        groups.flatMap((g) =>
+          (g.members ?? [])
+            .filter((m) => m.status === MemberStatus.ACTIVE && m.userId)
+            .slice(0, 4)
+            .map((m) => m.userId),
+        ),
+      ),
+    ];
+    const previewUsers = previewUserIds.length
+      ? await this.usersRepo.find({
+          where: { id: In(previewUserIds) },
+          select: { id: true, displayName: true, isProfileComplete: true },
+        })
+      : [];
+    const userById = new Map(previewUsers.map((u) => [u.id, u]));
+    for (const group of groups) {
+      for (const member of group.members ?? []) {
+        member.user = member.userId ? (userById.get(member.userId) as User) : null;
+      }
+    }
 
     const ids = groups.map((g) => g.id);
     const placeholders = ids.map(() => '?').join(',');
