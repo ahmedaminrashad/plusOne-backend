@@ -302,6 +302,7 @@ export class PayLinkService {
     const dir = lang === 'ar' ? 'rtl' : 'ltr';
     const ogTitle = 'A payment request on +one';
     const ogDesc = 'Open this link to pay your share.';
+    const logoUrl = `${publicAppOrigin()}/static/logo.png`;
     return `<!doctype html>
 <html lang="${lang}" dir="${dir}">
 <head>
@@ -309,16 +310,20 @@ export class PayLinkService {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta property="og:title" content="${ogTitle}" />
 <meta property="og:description" content="${ogDesc}" />
+<meta property="og:image" content="${logoUrl}" />
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:title" content="${ogTitle}" />
 <meta name="twitter:description" content="${ogDesc}" />
+<meta name="twitter:image" content="${logoUrl}" />
+<link rel="icon" href="/static/logo.png" />
 <title>+one</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: #F4F3EF; color: #182320; font-family: -apple-system, Segoe UI, Roboto, Tahoma, Arial, sans-serif; padding: 24px; }
   .card { max-width: 400px; width: 100%; }
-  .brand { text-align: center; font-weight: 800; font-size: 22px; color: #14665D; margin-bottom: 12px; }
+  .brand { text-align: center; margin-bottom: 16px; }
+  .brand img { width: 72px; height: 72px; border-radius: 18px; display: inline-block; }
   .lang { text-align: ${lang === 'ar' ? 'left' : 'right'}; margin-bottom: 8px; }
   .lang a { color: #14665D; font-size: 13px; font-weight: 600; text-decoration: none; }
   .panel { background: #fff; border-radius: 20px; padding: 24px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
@@ -340,7 +345,7 @@ export class PayLinkService {
 </head>
 <body>
   <div class="card">
-    <div class="brand">+one</div>
+    <div class="brand"><img src="/static/logo.png" alt="+one" width="72" height="72" /></div>
     ${bodyHtml}
   </div>
 </body>

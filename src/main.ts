@@ -14,6 +14,7 @@ async function bootstrap() {
   mkdirSync(join(uploadsDir, 'groups'), { recursive: true });
   mkdirSync(join(uploadsDir, 'users'), { recursive: true });
   app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
+  app.useStaticAssets(join(process.cwd(), 'public'), { prefix: '/static' });
 
   app.useGlobalPipes(
     new ValidationPipe({
