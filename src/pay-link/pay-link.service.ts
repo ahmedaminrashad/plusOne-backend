@@ -21,6 +21,14 @@ import { payLinkMessage, publicAppOrigin } from '../common/utils/share-copy';
 const PAY_LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DAILY_PAY_LINK_CAP = 40;
 
+const BRAND_MARK = `<div class="brand" dir="ltr">
+  <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+    <rect width="32" height="32" rx="8" fill="#14665D"/>
+    <path d="M16 8v16M8 16h16" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
+  </svg>
+  <span class="brand-name">+one</span>
+</div>`;
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -33,7 +41,7 @@ function escapeHtml(value: string): string {
 const STRINGS = {
   ar: {
     title: 'ادفع حصتك',
-    requestedBy: (name: string) => `${name} طلب حصتك`,
+    requestedBy: (_name: string) => 'يطلب منك دفع نصيبك من فاتورة',
     payButton: 'ادفع بإنستاباي',
     cashButton: 'دفعت كاش',
     paidInstapay: 'دفعت بإنستاباي',
@@ -115,8 +123,8 @@ export class PayLinkService {
       );
     }
 
-    const lang = share.initiator?.language === 'en' ? 'en' : 'ar';
-    const url = `${publicAppOrigin()}/p/${tokenRow.token}`;
+    const lang = share.initiator?.language === 'ar' ? 'ar' : 'en';
+    const url = `${publicAppOrigin()}/p/${tokenRow.token}?lang=${lang}`;
     const amountEg = (share.amountPiastres / 100).toFixed(2);
     const venue = share.bill?.venueName ?? share.bill?.title ?? '';
     const message = payLinkMessage(
@@ -187,6 +195,7 @@ export class PayLinkService {
     return this.page(`
       <div class="lang"><a href="${toggleHref}">${s.langToggle}</a></div>
       <div class="panel">
+        <div class="payer-name" dir="auto">${escapeHtml(payerName)}</div>
         <div class="subtitle">${escapeHtml(s.requestedBy(payerName))}</div>
         <div class="subtitle">${escapeHtml(venue)}${groupName ? ' · ' + escapeHtml(groupName) : ''}</div>
         <div class="amount">${escapeHtml(currency)} ${amountText}</div>
@@ -215,7 +224,7 @@ export class PayLinkService {
 
     const share = await this.sharesRepo.findOne({
       where: { id: row.shareId },
-      relations: { initiator: true, bill: true, owner: true },
+      relations: { initiator: true, bill: true, owner: true, group: true },
     });
     if (!share) return this.shell(s.notFound, lang, { state: 'dead' });
     if (share.status === ShareStatus.SETTLED) return this.shell(s.alreadySettled, lang, { state: 'done' });
@@ -233,7 +242,7 @@ export class PayLinkService {
     );
 
     if (share.initiator?.fcmToken) {
-      const nlang = share.initiator.language === 'en' ? 'en' : 'ar';
+      const nlang = share.initiator.language === 'ar' ? 'ar' : 'en';
       await this.notifications.send(
         share.initiator.fcmToken,
         notificationTexts.shareInitiated(nlang, {
@@ -247,6 +256,7 @@ export class PayLinkService {
           shareId: share.id,
           groupId: share.groupId,
           billId: share.billId,
+          groupName: share.group?.name ?? share.bill?.group?.name ?? '',
         },
       );
     }
@@ -322,11 +332,15 @@ export class PayLinkService {
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: #F4F3EF; color: #182320; font-family: -apple-system, Segoe UI, Roboto, Tahoma, Arial, sans-serif; padding: 24px; }
   .card { max-width: 400px; width: 100%; }
+  .brand { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px; unicode-bidi: isolate; }
+  .brand-logo { width: 32px; height: 32px; display: block; }
+  .brand-name { font-weight: 800; font-size: 22px; color: #14665D; letter-spacing: -0.02em; }
   .brand { text-align: center; margin-bottom: 16px; }
   .brand img { width: 72px; height: 72px; border-radius: 18px; display: inline-block; }
   .lang { text-align: ${lang === 'ar' ? 'left' : 'right'}; margin-bottom: 8px; }
   .lang a { color: #14665D; font-size: 13px; font-weight: 600; text-decoration: none; }
   .panel { background: #fff; border-radius: 20px; padding: 24px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+  .payer-name { color: #182320; font-size: 15px; font-weight: 700; margin-bottom: 2px; unicode-bidi: isolate; }
   .subtitle { color: #66706B; font-size: 13px; margin-bottom: 4px; }
   .amount { font-size: 40px; font-weight: 800; color: #182320; margin: 8px 0; }
   .pay-btn, .ghost-btn {
@@ -336,7 +350,7 @@ export class PayLinkService {
   .pay-btn { background: #14665D; color: #fff; }
   .ghost-btn { background: #fff; color: #14665D; border: 1.5px solid #14665D; }
   .note { color: #98A19C; font-size: 12px; line-height: 1.5; margin-top: 12px; }
-  .cta { display: block; text-align: center; color: #14665D; font-size: 13px; font-weight: 600; margin-top: 24px; }
+  .cta { display: block; text-align: center; color: #14665D; font-size: 13px; font-weight: 600; margin-top: 24px; unicode-bidi: isolate; direction: ${dir}; }
   .status-icon { font-size: 44px; margin-bottom: 12px; }
   .items { text-align: ${lang === 'ar' ? 'right' : 'left'}; margin: 12px 0 16px; }
   .items-title { font-size: 12px; color: #66706B; margin-bottom: 6px; }
@@ -345,6 +359,7 @@ export class PayLinkService {
 </head>
 <body>
   <div class="card">
+    ${BRAND_MARK}
     <div class="brand"><img src="/static/logo.png" alt="+one" width="72" height="72" /></div>
     ${bodyHtml}
   </div>

@@ -48,7 +48,9 @@ export class UsersService {
     const hasRequiredFields = !!user.displayName;
     user.isProfileComplete = hasRequiredFields;
 
-    return this.usersRepo.save(user);
+    const saved = await this.usersRepo.save(user);
+    const { fcmToken: _f, googleId: _g, appleId: _a, ...safe } = saved;
+    return safe as User;
   }
 
   async uploadProfilePhoto(userId: string, file: Express.Multer.File): Promise<{ url: string }> {

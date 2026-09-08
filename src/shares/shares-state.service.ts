@@ -16,11 +16,13 @@ const ALLOWED_TRANSITIONS: Record<ShareStatus, ShareStatus[]> = {
   [ShareStatus.LINK_SENT]: [
     ShareStatus.LINK_OPENED,
     ShareStatus.INITIATED,
+    ShareStatus.PENDING,
     ShareStatus.PENDING_CONFIRMATION,
     ShareStatus.CANCELLED,
   ],
   [ShareStatus.LINK_OPENED]: [
     ShareStatus.INITIATED,
+    ShareStatus.PENDING,
     ShareStatus.PENDING_CONFIRMATION,
     ShareStatus.CANCELLED,
   ],
@@ -35,7 +37,7 @@ const ALLOWED_TRANSITIONS: Record<ShareStatus, ShareStatus[]> = {
     ShareStatus.FAILED,
   ],
   [ShareStatus.SETTLED]: [ShareStatus.FAILED],
-  [ShareStatus.CANCELLED]: [],
+  [ShareStatus.CANCELLED]: [ShareStatus.PENDING],
 };
 
 export interface TransitionOptions {

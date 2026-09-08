@@ -104,8 +104,8 @@ export class SharesService {
   }
 
   /** Re-derives share rows from an edited item-claim set.
-   * PENDING shares can be created/updated/cancelled.
-   * INITIATED/SETTLED shares are left untouched (amount already in flight). */
+   * Existing rows are reused (unique bill+owner). CANCELLED shares are reopened.
+   * SETTLED shares stay locked. In-flight shares reset to PENDING if the amount changes. */
   async reconcileSharesForBill(
     manager: EntityManager,
     bill: Bill,
@@ -161,32 +161,47 @@ export class SharesService {
           result.push(existing);
           continue;
         }
+
+        // Unique (billId, ownerUserId / ownerPendingPhone) — never insert a
+        // second row. Re-open cancelled shares and update the rest in place.
+        const amountChanged = existing.amountPiastres !== dto.amountPiastres;
+        existing.amountPiastres = dto.amountPiastres;
+
         if (existing.status === ShareStatus.CANCELLED) {
-          // Re-open a cancelled row as a fresh pending share below.
-        } else if (
-          existing.status === ShareStatus.PENDING ||
-          existing.status === ShareStatus.FAILED ||
-          existing.status === ShareStatus.INITIATED
-        ) {
-          const amountChanged = existing.amountPiastres !== dto.amountPiastres;
-          existing.amountPiastres = dto.amountPiastres;
-          // Member marked "I paid" but the split changed — reopen so they can pay the new amount.
-          if (existing.status === ShareStatus.INITIATED && amountChanged) {
-            await this.stateService.transition(manager, existing, ShareStatus.PENDING, {
-              actor: actorUserId,
-              source: AuditSource.USER,
-              reason: 'amount_changed_on_bill_edit',
-            });
-          } else if (existing.status === ShareStatus.FAILED) {
-            existing.status = ShareStatus.PENDING;
-            existing.failureReason = null;
-          }
-          const saved = await manager.save(existing);
+          const saved = await this.stateService.transition(manager, existing, ShareStatus.PENDING, {
+            actor: actorUserId,
+            source: AuditSource.USER,
+            reason: 'readded_to_bill_items',
+          });
           keepShareIds.add(saved.id);
           result.push(saved);
-          if (amountChanged) updated.push(saved);
+          created.push(saved);
           continue;
         }
+
+        const reopenOnAmountChange =
+          amountChanged &&
+          (existing.status === ShareStatus.INITIATED ||
+            existing.status === ShareStatus.LINK_SENT ||
+            existing.status === ShareStatus.LINK_OPENED ||
+            existing.status === ShareStatus.PENDING_CONFIRMATION);
+
+        if (reopenOnAmountChange) {
+          await this.stateService.transition(manager, existing, ShareStatus.PENDING, {
+            actor: actorUserId,
+            source: AuditSource.USER,
+            reason: 'amount_changed_on_bill_edit',
+          });
+        } else if (existing.status === ShareStatus.FAILED) {
+          existing.status = ShareStatus.PENDING;
+          existing.failureReason = null;
+        }
+
+        const saved = await manager.save(existing);
+        keepShareIds.add(saved.id);
+        result.push(saved);
+        if (amountChanged) updated.push(saved);
+        continue;
       }
 
       {
@@ -256,7 +271,13 @@ export class SharesService {
           amountPiastres: share.amountPiastres,
           currency: share.currency,
         }),
-        { type: 'share_assigned', groupId: bill.groupId, billId: bill.id },
+        {
+          type: 'share_assigned',
+          groupId: bill.groupId,
+          billId: bill.id,
+          shareId: share.id,
+          groupName: group?.name ?? '',
+        },
       );
     }
 
@@ -271,7 +292,7 @@ export class SharesService {
           currency: share.currency,
           billTitle: bill.title ?? (owner.language === 'en' ? 'the receipt' : 'الإيصال'),
         }),
-        { type: 'share_updated', groupId: bill.groupId, billId: bill.id, shareId: share.id },
+        { type: 'share_updated', groupId: bill.groupId, billId: bill.id, shareId: share.id, groupName: group?.name ?? '' },
       );
     }
 
@@ -284,7 +305,7 @@ export class SharesService {
           editorName: editor?.displayName ?? (owner.language === 'en' ? 'A friend' : 'صديقك'),
           billTitle: bill.title ?? (owner.language === 'en' ? 'the receipt' : 'الإيصال'),
         }),
-        { type: 'share_removed', groupId: bill.groupId, billId: bill.id, shareId: share.id },
+        { type: 'share_removed', groupId: bill.groupId, billId: bill.id, shareId: share.id, groupName: group?.name ?? '' },
       );
     }
   }
@@ -320,6 +341,7 @@ export class SharesService {
           groupId: bill.groupId,
           groupName: group?.name ?? '',
           billId: bill.id,
+          shareId: share.id,
         },
       );
     }
@@ -388,7 +410,7 @@ export class SharesService {
 
     const withRelations = await this.sharesRepo.findOne({
       where: { id: updated.id },
-      relations: { owner: true, initiator: true, bill: true },
+      relations: { owner: true, initiator: true, bill: true, group: true },
     });
     if (withRelations?.initiator?.fcmToken) {
       const lang = withRelations.initiator.language;
@@ -400,7 +422,13 @@ export class SharesService {
           currency: withRelations.currency,
           billTitle: withRelations.bill?.title ?? (lang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
-        { type: 'share_initiated', shareId: updated.id },
+        {
+          type: 'share_initiated',
+          shareId: updated.id,
+          groupId: withRelations.groupId,
+          billId: withRelations.billId,
+          groupName: withRelations.group?.name ?? '',
+        },
       );
     }
     return updated;
@@ -631,7 +659,7 @@ export class SharesService {
           currency: share.currency,
           billTitle: share.bill?.title ?? (lang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
-        { type: 'share_stale_nudge', shareId: share.id },
+        { type: 'share_stale_nudge', shareId: share.id, groupId: share.groupId, billId: share.billId },
       );
     }
     share.lastReminderSentAt = now;

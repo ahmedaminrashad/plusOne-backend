@@ -165,6 +165,74 @@ export class LedgerService {
     };
   }
 
+  /**
+   * One round-trip for Home: hero totals + badge counts + per-group nets.
+   * Replaces N× GET /ledger/group plus GET /shares/mine on the home screen.
+   */
+  async getHomeSummary(userId: string): Promise<{
+    owedPiastres: number;
+    owePiastres: number;
+    approvalCount: number;
+    toPayCount: number;
+    invitationCount: number;
+    groupNets: Record<string, number>;
+  }> {
+    const memberships = await this.membersRepo.find({
+      where: { userId, status: MemberStatus.ACTIVE },
+      select: { id: true, groupId: true },
+    });
+    const groupIds = memberships.map((m) => m.groupId);
+
+    const groupNets: Record<string, number> = {};
+    let owedPiastres = 0;
+    let owePiastres = 0;
+
+    if (groupIds.length > 0) {
+      const shares = await this.sharesRepo.find({
+        where: { groupId: In(groupIds), status: In(OUTSTANDING_STATUSES) },
+        select: {
+          id: true,
+          groupId: true,
+          initiatorUserId: true,
+          ownerUserId: true,
+          amountPiastres: true,
+        },
+      });
+      for (const share of shares) {
+        let delta = 0;
+        if (share.initiatorUserId === userId) delta += share.amountPiastres;
+        if (share.ownerUserId === userId) delta -= share.amountPiastres;
+        if (!delta) continue;
+        groupNets[share.groupId] = (groupNets[share.groupId] ?? 0) + delta;
+      }
+      for (const net of Object.values(groupNets)) {
+        if (net > 0) owedPiastres += net;
+        else if (net < 0) owePiastres += -net;
+      }
+    }
+
+    const [approvalCount, toPayCount, invitationCount] = await Promise.all([
+      this.sharesRepo.count({
+        where: { initiatorUserId: userId, status: ShareStatus.INITIATED },
+      }),
+      this.sharesRepo.count({
+        where: { ownerUserId: userId, status: In([ShareStatus.PENDING, ShareStatus.FAILED]) },
+      }),
+      this.membersRepo.count({
+        where: { userId, status: MemberStatus.PENDING },
+      }),
+    ]);
+
+    return {
+      owedPiastres,
+      owePiastres,
+      approvalCount,
+      toPayCount,
+      invitationCount,
+      groupNets,
+    };
+  }
+
   private getCairoYearMonth(date: Date): { year: number; month: number } {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Africa/Cairo',

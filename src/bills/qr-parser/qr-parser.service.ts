@@ -7,8 +7,11 @@ export interface ParsedBillData {
   subtotal?: number;
   tax?: number;
   taxType?: 'percent' | 'amount';
+  vat?: number;
+  vatType?: 'percent' | 'amount';
   delivery?: number;
   deliveryType?: 'percent' | 'amount';
+  grandTotal?: number;
   captureMethod: 'qr';
   sourceRef: string;
 }
@@ -145,8 +148,8 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
   if (!r) return null;
 
   const lineItems: BillLineItem[] = (r.itemData ?? []).map((item: any) => {
-    const rawQty = Number(item.quantity ?? 1) || 1;
-    const lineTotal = Number(item.total ?? item.netSale ?? item.netTotal ?? NaN);
+    const rawQty = Number(item.quantity ?? item.qty ?? 1) || 1;
+    const lineTotal = Number(item.total ?? item.netSale ?? item.netTotal ?? item.netAmount ?? NaN);
     const unitType = String(item.unitType ?? item.unitTypeName ?? '').toUpperCase();
     // POS packs (MAF/Seoudi) often encode 1 each as qty 0.001 of a kg-priced SKU.
     const fractionalEach =
@@ -158,7 +161,7 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
     const unitFromTotal = Number.isFinite(lineTotal) ? lineTotal / qty : NaN;
     const unitPrice = Number.isFinite(unitFromTotal)
       ? round2(unitFromTotal)
-      : round2(Number(item.unitPrice ?? 0));
+      : round2(Number(item.unitPrice ?? item.unit_price ?? 0));
     return {
       name: item.description ?? item.itemCodeName ?? 'صنف',
       qty,
@@ -206,15 +209,20 @@ function mapEtaReceipt(data: any, sourceRef: string): ParsedBillData | null {
     sourceRef,
   };
 
-  // Don't invent tax when line totals already ≈ receipt total.
+  if (targetTotal != null && Number.isFinite(targetTotal)) {
+    result.grandTotal = round2(targetTotal);
+  }
+
+  // Keep VAT vs other tax separate so the mobile extras panel can show both.
+  // Skip inventing extras when line totals already match the receipt total.
   if (!extrasAlreadyIncluded) {
     if (otherTaxAmount > 0) {
-      result.tax = otherTaxAmount;
+      result.tax = round2(otherTaxAmount);
       result.taxType = 'amount';
     }
-    if (vatAmount > 0 && targetTotal != null && targetTotal > itemsSubtotal + 0.05) {
-      result.tax = (result.tax ?? 0) + vatAmount;
-      result.taxType = 'amount';
+    if (vatAmount > 0) {
+      result.vat = round2(vatAmount);
+      result.vatType = 'amount';
     }
   }
 
@@ -265,14 +273,19 @@ function parseFoodicsJson(data: any, sourceRef: string): ParsedBillData | null {
     unitPrice: round2(Number(it.price ?? it.unit_price ?? 0)),
   }));
 
+  const vat = data.vat ?? data.vat_amount ?? data.tax_vat;
+  const grandTotal = data.total ?? data.grand_total ?? data.amount;
   return {
     venueName: data.branch_name ?? data.store_name ?? data.restaurant_name,
     lineItems,
     subtotal: data.subtotal != null ? Number(data.subtotal) : undefined,
     tax: data.tax != null ? Number(data.tax) : undefined,
     taxType: 'amount',
+    vat: vat != null ? Number(vat) : undefined,
+    vatType: vat != null ? 'amount' : undefined,
     delivery: data.service_charge != null ? Number(data.service_charge) : undefined,
     deliveryType: 'amount',
+    grandTotal: grandTotal != null ? Number(grandTotal) : undefined,
     captureMethod: 'qr',
     sourceRef,
   };
