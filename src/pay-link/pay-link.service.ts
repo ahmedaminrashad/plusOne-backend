@@ -67,9 +67,9 @@ const STRINGS = {
     notFound: "This link doesn't exist or has expired.",
     noAlias: (name: string) => `${name} hasn't added an InstaPay number yet.`,
     awaiting:
-      'We notified the person who paid. They confirm before this counts as settled.',
+      'We notified the person you paid. They’ll confirm before this counts as settled.',
     cashNoted:
-      'Cash noted. The person who paid still needs to mark it received.',
+      'Cash noted. The person you paid still needs to mark it received.',
     itemsTitle: 'Your items',
     langToggle: 'العربية',
   },
@@ -291,16 +291,18 @@ export class PayLinkService {
       const nlang = share.initiator.language === 'ar' ? 'ar' : 'en';
       await this.notifications.send(
         share.initiator.fcmToken,
-        notificationTexts.shareInitiated(nlang, {
+        notificationTexts.shareAwaitingConfirmation(nlang, {
           ownerName:
-            share.ownerPendingPhone ?? (nlang === 'en' ? 'A +1' : 'ضيف'),
+            share.owner?.displayName ??
+            share.ownerPendingPhone ??
+            (nlang === 'en' ? 'A +1' : 'ضيف'),
           amountPiastres: share.amountPiastres,
           currency: share.currency,
           billTitle:
             share.bill?.title ?? (nlang === 'en' ? 'the receipt' : 'الإيصال'),
         }),
         {
-          type: 'share_initiated',
+          type: 'share_awaiting_confirmation',
           shareId: share.id,
           groupId: share.groupId,
           billId: share.billId,

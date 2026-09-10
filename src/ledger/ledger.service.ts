@@ -213,7 +213,10 @@ export class LedgerService {
 
     const [approvalCount, toPayCount, invitationCount] = await Promise.all([
       this.sharesRepo.count({
-        where: { initiatorUserId: userId, status: ShareStatus.INITIATED },
+        where: {
+          initiatorUserId: userId,
+          status: In([ShareStatus.INITIATED, ShareStatus.PENDING_CONFIRMATION]),
+        },
       }),
       this.sharesRepo.count({
         where: { ownerUserId: userId, status: In([ShareStatus.PENDING, ShareStatus.FAILED]) },

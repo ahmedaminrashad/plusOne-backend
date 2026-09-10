@@ -79,6 +79,22 @@ export const notificationTexts = {
       : { title: 'دفعة قيد التنفيذ', body: `${params.ownerName} بدأ دفع مبلغ ${amount} لـ ${params.billTitle}` };
   },
 
+  shareAwaitingConfirmation(
+    language: AppLanguage,
+    params: { ownerName: string; amountPiastres: number; currency: string; billTitle: string },
+  ): NotificationText {
+    const amount = formatAmount(params.amountPiastres, params.currency, language);
+    return language === 'en'
+      ? {
+          title: 'Mark payment received',
+          body: `${params.ownerName} paid ${amount} for ${params.billTitle} via the share link. Confirm when you’ve received it.`,
+        }
+      : {
+          title: 'أكّد استلام الدفعة',
+          body: `${params.ownerName} دفع ${amount} لـ ${params.billTitle} من خلال الرابط. أكّد لما الفلوس توصلك.`,
+        };
+  },
+
   shareSettled(
     language: AppLanguage,
     params: { initiatorName: string; amountPiastres: number; currency: string; billTitle: string },
