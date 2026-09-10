@@ -62,4 +62,10 @@ export class UsersController {
   saveLanguage(@CurrentUser() user: User, @Body() dto: SaveLanguageDto) {
     return this.usersService.saveLanguage(user.id, dto.language);
   }
+
+  @Patch('me/badge/clear')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  clearUnreadBadge(@CurrentUser() user: User) {
+    return this.usersService.clearUnreadBadge(user.id);
+  }
 }

@@ -39,6 +39,9 @@ export class User {
   @Column({ type: 'text', nullable: true })
   fcmToken: string;
 
+  @Column({ type: 'int', unsigned: true, default: 0 })
+  unreadBadgeCount: number;
+
   @Column({ type: 'enum', enum: ['ar', 'en'], default: 'en' })
   language: 'ar' | 'en';
 

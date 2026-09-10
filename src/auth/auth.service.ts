@@ -64,7 +64,7 @@ export class AuthService {
       if (cooldownEnd > new Date()) {
         const remaining = Math.ceil((cooldownEnd.getTime() - Date.now()) / 1000);
         this.logger.debug(`[OTP] Cooldown active for ${phone}, ${remaining}s remaining — silently succeeding for dev`);
-        return { message: 'تم إرسال رمز التحقق', cooldown: remaining };
+        return { message: 'Verification code sent', cooldown: remaining };
       }
     }
 
@@ -76,7 +76,7 @@ export class AuthService {
     // Console log — replace with real SMS provider (Twilio, etc.)
     this.logger.log(`[OTP] Phone: ${phone} | Code: ${code} | Expires: ${expiresAt.toISOString()}`);
 
-    return { message: 'تم إرسال رمز التحقق', cooldown: OTP_RESEND_COOLDOWN_SECONDS };
+    return { message: 'Verification code sent', cooldown: OTP_RESEND_COOLDOWN_SECONDS };
   }
 
   async verifyOtp(dto: VerifyOtpDto): Promise<{ accessToken: string; refreshToken: string; isNewUser: boolean }> {
@@ -158,7 +158,10 @@ export class AuthService {
     await this.refreshTokenRepo.update({ token }, { revoked: true });
     // Stop sending this device pushes for the account that just logged out of it.
     if (record) {
-      await this.usersRepo.update(record.userId, { fcmToken: null as unknown as string });
+      await this.usersRepo.update(record.userId, {
+        fcmToken: null as unknown as string,
+        unreadBadgeCount: 0,
+      });
     }
   }
 
@@ -169,7 +172,7 @@ export class AuthService {
     let user = await this.usersRepo.findOne({ where: { phone: In(variants) } });
     const isNewUser = !user;
     if (!user) {
-      user = await this.usersRepo.save({ phone: variants[0] });
+      user = await this.usersRepo.save({ phone: variants[0], language: 'en' });
     }
     await this.claimGhostRecords(phone, user.id);
     return this.generateTokens(user, isNewUser);

@@ -35,6 +35,10 @@ export class UsersService {
     await this.usersRepo.update(id, { language });
   }
 
+  async clearUnreadBadge(id: string): Promise<void> {
+    await this.usersRepo.update(id, { unreadBadgeCount: 0 });
+  }
+
   async updateProfile(id: string, dto: UpdateProfileDto): Promise<User> {
     console.log('Updating profile for user ID:', id, 'with data:', dto);
     const user = await this.findById(id);
