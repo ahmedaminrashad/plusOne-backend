@@ -121,7 +121,7 @@ export class GroupsService {
     const previewUsers = previewUserIds.length
       ? await this.usersRepo.find({
           where: { id: In(previewUserIds) },
-          select: { id: true, displayName: true, isProfileComplete: true },
+          select: { id: true, displayName: true, photoUrl: true, isProfileComplete: true },
         })
       : [];
     const userById = new Map(previewUsers.map((u) => [u.id, u]));

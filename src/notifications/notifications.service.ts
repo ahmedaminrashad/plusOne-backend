@@ -19,7 +19,11 @@ export class NotificationsService {
     notification: { title: string; body: string },
     data?: Record<string, string>,
   ): Promise<void> {
-    if (!this.firebase.isReady || !fcmToken) return;
+    if (!fcmToken) return;
+    if (!this.firebase.isReady) {
+      this.logger.warn('[FCM] Skip send — Firebase Admin is not configured');
+      return;
+    }
 
     // APNs badge is an absolute count, not +1. Always sending 1 is why the
     // home-screen icon never moved past a single dot.
@@ -44,6 +48,8 @@ export class NotificationsService {
         android: {
           priority: 'high',
           notification: {
+            channelId: 'plusone_alerts',
+            sound: 'default',
             notificationCount: badge,
           },
         },
@@ -65,7 +71,20 @@ export class NotificationsService {
         },
       });
     } catch (err: any) {
-      this.logger.warn(`[FCM] Failed to send notification: ${err?.message}`);
+      const code = err?.errorInfo?.code ?? err?.code;
+      this.logger.warn(`[FCM] Failed to send notification: ${code ?? ''} ${err?.message}`);
+      if (
+        code === 'messaging/registration-token-not-registered' ||
+        code === 'messaging/invalid-registration-token'
+      ) {
+        await this.usersRepo
+          .createQueryBuilder()
+          .update(User)
+          .set({ fcmToken: () => 'NULL' })
+          .where('fcmToken = :token', { token: fcmToken })
+          .execute()
+          .catch(() => {});
+      }
     }
   }
 

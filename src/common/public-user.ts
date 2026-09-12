@@ -49,14 +49,7 @@ export function toListGroup(group: Group) {
     category: group.category,
     avatarUrl: publicAssetUrl(group.avatarUrl),
     memberCount: active.length,
-    // Initials only — full photos on the list were decoded on Home and
-    // jetsam-killed backboardd on iPhone 11.
-    members: active.slice(0, 4).map((m) => {
-      const listed = toListMember(m);
-      return listed.user
-        ? { ...listed, user: { ...listed.user, photoUrl: null } }
-        : listed;
-    }),
+    members: active.slice(0, 4).map(toListMember),
     createdAt: group.createdAt,
     updatedAt: group.updatedAt,
   };
